@@ -77,7 +77,12 @@ const leaderboard = () => {
     const [gamemode, setGamemode] = useState('Free Play')
 
     function handleRedirect(event) {
-        window.location.href = `/game/${event.target.id}`
+        if (event.target.dataset.gamemode == 'Free Play') {
+            window.location.href = `/game/${event.target.id}`
+        }
+        else if (event.target.dataset.gamemode == 'Progressive') {
+            window.location.href = `/proggame/${event.target.id}`
+        }
     }
 
     function handleChange(event) {
@@ -151,7 +156,7 @@ const leaderboard = () => {
                     <h2>{score.gamemode}</h2>
                     <h2>{score.score}</h2>
                     <h2>{score.boardSize}</h2>
-                    <h2 className='playBoard' id={score.boardId} onClick={(event) => handleRedirect(event)}>Play this board</h2>
+                    <h2 className='playBoard' id={score.boardId} data-gamemode={score.gamemode} onClick={(event) => handleRedirect(event)}>Play this board</h2>
                 </div>
             ))}
             </>

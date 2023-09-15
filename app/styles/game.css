@@ -322,6 +322,14 @@
     padding: 2em;
     text-align: center;
   }
+
+  dialog button {
+    cursor: pointer;
+    min-width: 100px;
+    padding: 0.5em;
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+  }
   
   @keyframes grow {
     0% {

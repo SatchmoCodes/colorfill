@@ -41,7 +41,6 @@ export const loader = async ({ params, request }) => {
 
 
 export const action = async ({ request }) => {
-  console.log('hello')
   const userId = await requireUserId(request)
   const formData = await request.formData()
   const submitType = formData.get('submitType')
@@ -84,9 +83,12 @@ export const action = async ({ request }) => {
     }
     const newScore = await createScore({ score, gamemode, userId, boardId, boardSize, userName })
   }
+
+  if (submitType == 'newBoard') {
     const newBoard = await createBoard({ size: newBoardSize, boardData, userId})
-    
     return redirect(`/game/${newBoard.id}`)
+  }
+  return null
 }
 
 const colors = ['var(--red)', 'var(--orange)', 'var(--yellow)', 'var(--green)', 'var(--blue)']
@@ -167,7 +169,6 @@ function App() {
           setSelectedColor(localStorage.getItem('selectedColor'))
           setSquareCounter(squareCounterArr)
           setCount(turnCount)
-          console.log('balls')
         }
       }
       else {
@@ -245,15 +246,19 @@ function App() {
 
     if (totalCaptured >= (boardSize * boardSize) - 1) {
       setComplete(true)
-      console.log(document.querySelector('.formData'))
-      fetcher.submit(document.querySelector('.formData'))
       localStorage.setItem('playing', 'false')
-      document.querySelector('.endDialog').show()
       if (turnCount < highScore || highScore == null) {
         setHighScore(turnCount)
       }
+      document.querySelector('.endDialog').show()
     }
   }
+
+  useEffect(() => {
+    if (complete) {
+      fetcher.submit(document.querySelector('.scoreData'))
+    }
+  }, [complete])
 
   function updateSquareCount(color) {
     squareCounterArr.forEach(sq => {
@@ -262,6 +267,8 @@ function App() {
       }
     })
     setSquareCounter(squareCounterArr)
+
+
     // setSquareCounter(prevSquareCounter => 
     //   prevSquareCounter.map((sq) => {
     //     if (sq.color === color) {
@@ -367,6 +374,8 @@ function App() {
     setColorState(tempSquareArr)
     setSelectedColor(tempSquareArr[0].color)
     data.squareData = JSON.parse(JSON.stringify(tempSquareArr))
+    setComplete(false)
+    document.querySelector('.endDialog').close()
   }
 
   function handleSave() {
@@ -433,6 +442,17 @@ function App() {
   return (
     <div className='gameContainer'>
       <div className='settingsIcon' onClick={handleOpen}>{isOpen ? 'X' : 'O'}</div>
+      <dialog className='scoreDialog'>
+        <fetcher.Form className='scoreData' reloadDocument method='post' action='/game'>
+            <h2>You completed the board in {count} turns!</h2>
+            <input type='hidden' value={turnCount} name='score'></input>
+            <input type='hidden' value={boardSize} name='boardSize'></input>
+            <input type='hidden' value={boardId} name='boardId'></input>
+            <input type='hidden' value={newBoardSize} name='newBoardSize'></input>
+            <input type='hidden' value={user.username} name='username'></input>
+            <input type='hidden' value={'submit'} name='submitType'></input>
+          </fetcher.Form>
+      </dialog>
       <dialog className='endDialog'>
         <fetcher.Form className='formData' reloadDocument method='post' action='/game'>
           <h2>You completed the board in {count} turns!</h2>
@@ -441,7 +461,7 @@ function App() {
           <input type='hidden' value={boardId} name='boardId'></input>
           <input type='hidden' value={newBoardSize} name='newBoardSize'></input>
           <input type='hidden' value={user.username} name='username'></input>
-          <input type='hidden' value={'submit'} name='submitType'></input>
+          <input type='hidden' value={'newBoard'} name='submitType'></input>
           <button type='submit'>New Board</button>
         </fetcher.Form>
         <button type='submit' onClick={handleRetry}>Retry</button>
@@ -459,7 +479,7 @@ function App() {
         <div className='extraRow'>
           <div className='resetButton'>
             <fetcher.Form reloadDocument method='post'>
-              <input type='hidden' value='reset' name='submitType'></input>
+              <input type='hidden' value='newBoard' name='submitType'></input>
               <input type='hidden' value={newBoardSize} name='newBoardSize'></input>
               <button type='submit'>New Board</button>
             </fetcher.Form>
