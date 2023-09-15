@@ -1,0 +1,73 @@
+* {
+    font-weight: normal;
+}
+
+/* Link */
+
+.link {
+    text-align: center;
+}
+
+.link a {
+    font-size: 2rem;
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.personalStats {
+    text-align: center;
+    margin-bottom: 5%;
+    margin-top: 5%;
+}
+
+.table {
+    border: 1px solid black;
+    width: 75%;
+    margin: auto;
+    margin-bottom: 2rem;
+}
+
+.table .row, .table .topRow {
+    display: flex;
+    justify-content: space-evenly;
+}
+
+.table .row h2, .table .row div {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 0;
+    flex-grow: 1;
+    padding: 1em;
+}
+
+.filters input {
+    padding: 1em;
+}
+
+.table select {
+    padding: 1em;
+}
+
+.table .row:nth-of-type(odd) {
+    background-color: rgb(184, 201, 218);
+}
+
+.playBoard {
+    color: purple;
+    cursor: pointer;
+}
+
+@media screen and (max-width: 1300px) {
+    .table {
+        font-size: 0.5em;
+        width: 95%;
+    }
+
+    input, select {
+        font-size: 1em;
+        width: 100%;
+        max-width: 100px;
+    }
+}

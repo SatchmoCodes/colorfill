@@ -1,0 +1,36 @@
+.wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+}
+
+input {
+    padding: 1em;
+    margin-bottom: 5%;
+    width: 100%;
+}
+
+label {
+    display: flex;
+    justify-content: center;
+}
+
+button {
+    display: flex;
+    margin: auto;
+    margin-bottom: 1em;
+    padding: 1em;
+    cursor: pointer;
+}
+
+.bottom {
+    display: flex;
+    justify-content: space-evenly;
+    gap: 1em;
+}
+
+.remember {
+    display: flex;
+    text-align: center;
+}
