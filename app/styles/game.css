@@ -50,6 +50,10 @@
   .two {
     background: linear-gradient(90deg, rgba(232,20,20,1) 0%, rgba(207,19,19,1) 100%) !important;
   }
+
+  .hide {
+    display: none !important;
+  }
   
   body {
     height: 98vh;
@@ -270,6 +274,10 @@
   }
   
   /* Color palette section */
+
+  .colorOptions {
+    margin-top: 2em;
+  }
   
   .colorPalette {
     display: flex;
@@ -366,8 +374,8 @@
     .right .options {
       display: none;
       background-color: white;
+      width: 100vw;
       height: 100vh;
-      margin-top: 10%;
     }
 
     .gameContainer {

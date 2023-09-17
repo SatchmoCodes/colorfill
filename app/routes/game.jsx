@@ -24,6 +24,7 @@ import { getBestScore } from '../models/score.server';
 
 
 
+
 export const loader = async ({ params, request }) => {
   const userId = await requireUserId(request);
   invariant(params.boardId, "boardId not found");
@@ -466,7 +467,7 @@ function App() {
         </fetcher.Form>
         <button type='submit' onClick={handleRetry}>Retry</button>
       </dialog>
-    <section className='left'>
+    <section className={`left ${isOpen ? 'hide' : ''}`}>
       <h1>{count}</h1>
       <div className='board' style={{gridTemplateColumns: `repeat(${boardSize}, 1fr)`, background: !radarActive ? selectedColor : 'white'}}>
         {data.squareData.map((sq, index) => {
@@ -548,6 +549,7 @@ function App() {
           <input id='grid' type='checkbox' value='1px solid black' checked={grid} name='grid' onChange={handleGridToggle}></input>
           <label htmlFor='grid'>Grid</label>
         </div>
+        <h2 className='colorOptions'>Color Options</h2>
         <div className='colorPalette'>
           <div className='colorHolder selectedPalette'>
             <div className='palColor' style={{background: 'var(--red)'}}></div>
