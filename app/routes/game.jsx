@@ -134,6 +134,8 @@ let squareCounterArr = [
 
 
 let tempSquareArr
+let turnLogArr = []
+let numberCaptured = 0
 let hasRun = false
 
 function App() {
@@ -156,7 +158,11 @@ function App() {
   const [isOpen, setIsOpen] = useState(false)
   const [complete, setComplete] = useState(false)
 
+  const [turnLog, setTurnLog] = useState(turnLogArr)
+
   const [boardId, setBoardId] = useState(data.board.id)
+
+  console.log(turnLog)
 
   useEffect(() => {
     if (!hasRun) {
@@ -207,6 +213,7 @@ function App() {
 
   function colorChange(color) {
     tempSquareArr = JSON.parse(JSON.stringify(data.squareData))
+    let numberCaptured = totalCaptured
     console.log(localStorage.getItem('playing'))
     setColorState(tempSquareArr)
     data.squareGrowth.map((e, index) => {
@@ -229,7 +236,16 @@ function App() {
       tempSquareArr = JSON.parse(JSON.stringify(data.squareData))
     } 
     data.squareData = JSON.parse(JSON.stringify(tempSquareArr))
-
+    if (!radarActive) {
+      numberCaptured = totalCaptured - numberCaptured
+      let captureObj = {
+        captured: numberCaptured,
+        color: color
+      }
+      turnLogArr.push(captureObj)
+      let newArrayCauseReactIsGay = [...turnLogArr]
+      setTurnLog(newArrayCauseReactIsGay)
+    }
     //saving board status to local storage if user quits early
     if (turnCount >= 1) {
       console.log('new board saved')
@@ -256,6 +272,11 @@ function App() {
   }
 
   useEffect(() => {
+    let x = document.querySelectorAll('.row')
+    document.querySelectorAll('.row') != null && document.querySelectorAll('.row')[x.length - 1].scrollIntoView({ behavior: "smooth", block: "end", inline: "nearest" });
+  }, [turnLog])
+
+  useEffect(() => {
     if (complete) {
       fetcher.submit(document.querySelector('.scoreData'))
     }
@@ -268,18 +289,6 @@ function App() {
       }
     })
     setSquareCounter(squareCounterArr)
-
-
-    // setSquareCounter(prevSquareCounter => 
-    //   prevSquareCounter.map((sq) => {
-    //     if (sq.color === color) {
-    //       let currentCount = parseInt(sq.count);
-    //       return { ...sq, count: currentCount - 1 };
-    //     } else {
-    //       return sq;
-    //     }
-    //   })
-    // );
   }
 
   function captureCheck(color, index) {
@@ -523,31 +532,55 @@ function App() {
         </div>
       </div>
       <div className={`options ${isOpen ? 'show' : ''}`}>
-        <div className='boardSize'>
-          <h2>Board Size</h2>
-          <div className='boardOptions'>
-            <div className='option'>
-              <input id='small' type='radio' name='size' checked={newBoardSize == '10'} value={10} onChange={handleSizeChange}/>
-              <label htmlFor='small'>Small</label>
+        <div className='optionWrap'>
+          <div className='boardSize'>
+            <h2>Board Size</h2>
+            <div className='boardOptions'>
+              <div className='option'>
+                <input id='small' type='radio' name='size' checked={newBoardSize == '10'} value={10} onChange={handleSizeChange}/>
+                <label htmlFor='small'>Small</label>
+              </div>
+              <div className='option'>
+                <input id='medium' type='radio' name='size' checked={newBoardSize == '20'} value={20} onChange={handleSizeChange}/>
+                <label htmlFor='medium'>Medium</label>
+              </div>
+              <div className='option'>
+                <input id='large' type='radio' name='size' checked={newBoardSize == '30'} value={30} onChange={handleSizeChange}/>
+                <label htmlFor='large'>Large</label>
+              </div>
+              {/* <div className='customOption'>
+                <label htmlFor='customInput'>Custom</label>
+                <input id='customInput' type='text' name='size' value={customBoardSize} placeholder='5-40' onChange={handleCustomBoardSize}/>
+              </div> */}
             </div>
-            <div className='option'>
-              <input id='medium' type='radio' name='size' checked={newBoardSize == '20'} value={20} onChange={handleSizeChange}/>
-              <label htmlFor='medium'>Medium</label>
-            </div>
-            <div className='option'>
-              <input id='large' type='radio' name='size' checked={newBoardSize == '30'} value={30} onChange={handleSizeChange}/>
-              <label htmlFor='large'>Large</label>
-            </div>
-            {/* <div className='customOption'>
-              <label htmlFor='customInput'>Custom</label>
-              <input id='customInput' type='text' name='size' value={customBoardSize} placeholder='5-40' onChange={handleCustomBoardSize}/>
-            </div> */}
+          </div>
+          <div className='gridView'>
+            <h2>Grid View</h2>
+            <input id='grid' type='checkbox' value='1px solid black' checked={grid} name='grid' onChange={handleGridToggle}></input>
+            <label htmlFor='grid'>Grid</label>
           </div>
         </div>
-        <div className='gridView'>
-          <h2>Grid View</h2>
-          <input id='grid' type='checkbox' value='1px solid black' checked={grid} name='grid' onChange={handleGridToggle}></input>
-          <label htmlFor='grid'>Grid</label>
+        <div className='turnLog'>
+          <h3>Turn Log</h3>
+          <div className='turnLogBox'>
+            <div className='row'>
+              <h3>Turn</h3>
+              <h3>Captured</h3>
+            </div>
+            {turnLog.map((row, index) => {
+              return (
+                <div className='row'>
+                <h3>{index + 1}</h3>
+                <div className='turnInfo'>
+                  <div className='fakeSquare' style={{background: turnLog[index].color}}>
+                    <h4>{turnLog[index].captured}</h4>
+                  </div>
+                </div>
+              </div>
+              )
+            })}
+            <div className='anchor'></div>
+          </div>
         </div>
         <h2 className='colorOptions'>Color Options</h2>
         <div className='colorPalette'>

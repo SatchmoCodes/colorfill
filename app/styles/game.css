@@ -218,9 +218,6 @@
     height: clamp(3rem, 1rem + 5vw, 5rem);
     padding: 1em;
     border: 1px solid black;
-    color: rgb(255, 255, 255);
-    font-size: 1.5em;
-    -webkit-text-stroke: 1px black;
   }
 
   /* PVP Counters */
@@ -233,11 +230,22 @@
     height: 2rem;
   }
 
+  .fakeSquare h4 {
+    color: rgb(255, 255, 255);
+    font-size: 1.75em;
+    -webkit-text-stroke: 1px black;
+  }
 
-  
   /* Board resizing */
+
+ .optionWrap {
+  display: flex;
+  justify-content: space-around;
+ }
   
   .boardSize {
+    display: flex;
+    flex-direction: column;
     margin-top: 2em;
   }
   
@@ -248,7 +256,9 @@
   }
   
   .boardOptions .option {
-    flex-basis: 33.3333%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
     margin-bottom: 1em;
     text-align: center;
   }
@@ -271,6 +281,65 @@
   
   .gridView label {
     margin-left: 0.5em;
+  }
+
+   /* Turnlog Section */
+
+   .turnLog {
+    margin-top: 2em;
+  }
+
+  .turnLogBox {
+    border: 1px solid black;
+    overflow-y: scroll;
+    height: 20vh;
+  }
+
+  /* .turnLogBox * {
+    overflow-anchor: none;
+  } */
+
+  .turnLog .turnLogBox .row {
+    display: flex;
+    padding-bottom: 0.5em;
+    padding-top: 0.5em;
+    border: 1px solid black;
+    border-left: 0;
+    border-right: 0;
+    border-top: 0;
+  }
+
+  /* .anchor {
+    overflow-anchor: auto;
+    height: 1px;
+  } */
+
+  /* .turnLog .turnLogBox .row:nth-of-type(2) {
+    border-top: 1px solid black;
+  } */
+
+  .turnLog .turnLogBox .row > h3:nth-of-type(1){
+    width: 20%
+  }
+
+  .turnLog .turnLogBox .row > h3:nth-of-type(2){
+    width: 80%;
+  }
+
+  .turnLog .turnLogBox .row > div:nth-of-type(1){
+    width: 80%;
+  }
+
+  .turnLog .fakeSquare {
+    margin: auto;
+    padding: 1.5em;
+  }
+
+  .turnLog h3 {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 0;
   }
   
   /* Color palette section */
@@ -303,6 +372,7 @@
     height: clamp(1em, 1vw + 1em, 3em);
     border: 1px solid black;
   }
+
 
   /* Link to main menu */
 
@@ -376,6 +446,11 @@
       background-color: white;
       width: 100vw;
       height: 100vh;
+    }
+
+    .options .boardSize, .options .gridView {
+      display: block;
+      width: 100%;
     }
 
     .gameContainer {
