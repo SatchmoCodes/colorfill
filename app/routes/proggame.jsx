@@ -495,9 +495,11 @@ function App() {
     <div className='gameContainer'>
       <div className='settingsIcon' onClick={handleOpen}>{isOpen ? 'X' : 'O'}</div>
       <section className='left'>
-        <h1>Hole {holeNumber + 1}</h1>
-        <h1>{count} / {par}</h1>
-        <h2>Total Score: {totalScore > 0 ? `+${totalScore}` : totalScore} {totalScore <= 0 ? 'Under' : 'Over'}</h2>
+        <div className='holeInfo'>
+          <h1>Hole {holeNumber + 1}</h1>
+          <h1>{count} / {par}</h1>
+          <h2>Total: {totalScore > 0 ? `+${totalScore}` : totalScore} {totalScore <= 0 ? 'Under' : 'Over'}</h2>
+        </div>
         <div className='board' style={{gridTemplateColumns: `repeat(${boardSize}, 1fr)`, background: !radarActive ? selectedColor : 'white'}}>
           {data.squareData[hole].map((sq, index) => {
             return (

@@ -78,16 +78,35 @@
 
   .left {
     display: flex;
+    flex-direction: column;
     flex-basis: 50%;
-    flex-wrap: wrap;
+    margin-top: auto;
+    margin-bottom: auto;
   }
   
   .left h1, .left h2 {
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    font-size: clamp(2rem, 1vw + 1rem, 3rem);
+    font-size: clamp(1rem, 1vw + 0.25rem, 2rem);
     width: 100%;
+  }
+
+  .left .holeInfo {
+    display: flex;
+    width: calc(30vw + 10em);
+    max-width: 70vh;
+    max-height: 10vh;
+    margin: auto;
+    justify-content: space-evenly;
+  }
+
+  .left .holeInfo h1:nth-of-type(1) {
+    justify-content: left;
+  }
+
+  .left .holeInfo h2:nth-of-type(1) {
+    justify-content: right;
   }
   
   
@@ -103,8 +122,8 @@
     /* grid-template-columns: repeat(var(--dimensions), 1fr); */
     width: calc(30vw + 10em);
     height: calc(30vw + 10em);
-    max-width: 72vh;
-    max-height: 72vh;
+    max-width: 70vh;
+    max-height: 70vh;
     margin: auto;
     border: 1px solid black;
     background-color: white;
@@ -118,6 +137,7 @@
 
   .buttonSection {
     width: 100%;
+    max-height: 20vh;
   }
   
   .colorRow, .extraRow {
@@ -133,8 +153,8 @@
   }
   
   .colorRow div {
-    width: clamp(3rem, 2vw + 3rem, 8rem);
-    height: clamp(3rem, 2vw + 3rem, 8rem);
+    width: clamp(3rem, 2vw + 3rem, 8vh);
+    height: clamp(3rem, 2vw + 3rem, 8vh);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -147,8 +167,8 @@
   }
 
   .extraRow button {
-    width: clamp(3rem, 2vw + 3rem, 8rem);
-    height: clamp(3rem, 2vw + 3rem, 8rem);
+    width: clamp(3rem, 2vw + 3rem, 8vh);
+    height: clamp(3rem, 2vw + 3rem, 8vh);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -187,19 +207,21 @@
   /* Right side */
 
   .right {
-    margin-top: 5vh;
+    margin-top: 2vh;
   }
   
   /* Scoreboard */
+
+  .scoreboard {
+    max-height: 25vh;
+  }
   
   .right h2 {
-    font-size: clamp(1rem, 1vw + 1rem, 2rem);
-    margin-bottom: 1em;
+    margin-bottom: 0.5em;
     text-align: center;
   }
   
   .right h3 {
-    font-size: clamp(1rem, 1vw + .75rem, 1.5rem);
     margin-bottom: 0.5em;
     text-align: center;
   }
@@ -214,10 +236,13 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    width: clamp(3rem, 1rem + 5vw, 5rem);
-    height: clamp(3rem, 1rem + 5vw, 5rem);
-    padding: 1em;
     border: 1px solid black;
+    font-size: clamp(.75em, 2vw + 0.25em, 1em);
+    padding: clamp(1em, 2.5vw + 1em, 2em);
+  }
+
+  .options {
+    max-height: 75vh;
   }
 
   /* PVP Counters */
@@ -226,8 +251,10 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    width: 2rem;
-    height: 2rem;
+    width: clamp(1rem, 8vw + 1rem, 3rem);
+    height: clamp(1rem, 8vw + 1rem, 3rem);
+    max-width: 5vh;
+    max-height: 5vh;
   }
 
   .fakeSquare h4 {
@@ -276,6 +303,8 @@
   /* Grid view option */
   
   .gridView {
+    display: flex;
+    flex-direction: column;
     margin-top: 2em;
     text-align: center;
   }
@@ -293,7 +322,8 @@
   .turnLogBox {
     border: 1px solid black;
     overflow-y: scroll;
-    height: 20vh;
+    height: 15vh;
+    min-height: 140px;
   }
 
   /* .turnLogBox * {
@@ -355,8 +385,9 @@
     width: 100%;
     border: 1px solid black;
     padding: 1em;
-    margin-top: 2em;
+    margin-top: 2vh;
     justify-content: space-around;
+    max-height: 20vh;
   }
   
   .colorHolder {
@@ -369,8 +400,10 @@
   }
   
   .palColor {
-    width: clamp(1em, 1vw + 1em, 3em);
-    height: clamp(1em, 1vw + 1em, 3em);
+    min-width: 1rem;
+    min-height: 1rem;
+    width: 3vh;
+    height: 3vh;
     border: 1px solid black;
   }
 
@@ -471,6 +504,14 @@
     .left {
       order: 2;
       flex-basis: 100%;
+    }
+
+    .left .holeInfo {
+      width: 80%;
+    }
+
+    .left .holeInfo h1, .left .holeInfo h2 {
+      justify-content: center !important;
     }
 
     .right {
