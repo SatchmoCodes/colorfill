@@ -241,18 +241,19 @@
  .optionWrap {
   display: flex;
   justify-content: space-around;
+  margin-right: 5rem;
  }
   
   .boardSize {
     display: flex;
     flex-direction: column;
+    flex-grow: 1;
     margin-top: 2em;
   }
   
   .boardOptions {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
+    justify-content: space-evenly;
   }
   
   .boardOptions .option {
@@ -439,6 +440,10 @@
 
     .settingsIcon {
       display: block;
+    }
+
+    .optionWrap {
+      margin-right: 0;
     }
 
     .right .options {

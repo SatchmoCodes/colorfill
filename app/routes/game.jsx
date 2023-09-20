@@ -162,7 +162,7 @@ function App() {
 
   const [boardId, setBoardId] = useState(data.board.id)
 
-  console.log(turnLog)
+  console.log(turnLogArr)
 
   useEffect(() => {
     if (!hasRun) {
@@ -173,9 +173,12 @@ function App() {
           turnCount = localStorage.getItem('turnCount')
           totalCaptured = localStorage.getItem('totalCaptured')
           squareCounterArr = JSON.parse(localStorage.getItem('squareCounter'))
+          console.log(JSON.parse(localStorage.getItem('turnLog')))
+          turnLogArr = JSON.parse(localStorage.getItem('turnLog'))
           setSelectedColor(localStorage.getItem('selectedColor'))
           setSquareCounter(squareCounterArr)
           setCount(turnCount)
+          setTurnLog(turnLogArr)
         }
       }
       else {
@@ -243,8 +246,8 @@ function App() {
         color: color
       }
       turnLogArr.push(captureObj)
-      let newArrayCauseReactIsGay = [...turnLogArr]
-      setTurnLog(newArrayCauseReactIsGay)
+      let newArrayCauseReactIsLame = [...turnLogArr]
+      setTurnLog(newArrayCauseReactIsLame)
     }
     //saving board status to local storage if user quits early
     if (turnCount >= 1) {
@@ -258,6 +261,7 @@ function App() {
       localStorage.setItem('playing', 'true')
       localStorage.setItem('gamemode', 'freeplay')
       !radarActive && localStorage.setItem('selectedColor', color)
+      localStorage.setItem('turnLog', JSON.stringify(turnLogArr))
       localStorage.setItem('playerId', user.id)
     }
 
@@ -385,6 +389,8 @@ function App() {
     setSelectedColor(tempSquareArr[0].color)
     data.squareData = JSON.parse(JSON.stringify(tempSquareArr))
     setComplete(false)
+    turnLogArr = []
+    setTurnLog(turnLogArr)
     document.querySelector('.endDialog').close()
   }
 
@@ -454,7 +460,6 @@ function App() {
       <div className='settingsIcon' onClick={handleOpen}>{isOpen ? 'X' : 'O'}</div>
       <dialog className='scoreDialog'>
         <fetcher.Form className='scoreData' reloadDocument method='post' action='/game'>
-            <h2>You completed the board in {count} turns!</h2>
             <input type='hidden' value={turnCount} name='score'></input>
             <input type='hidden' value={boardSize} name='boardSize'></input>
             <input type='hidden' value={boardId} name='boardId'></input>
@@ -567,7 +572,7 @@ function App() {
               <h3>Turn</h3>
               <h3>Captured</h3>
             </div>
-            {turnLog.map((row, index) => {
+            {turnLog && turnLog.map((row, index) => {
               return (
                 <div className='row'>
                 <h3>{index + 1}</h3>

@@ -47,15 +47,17 @@ export const loader = async ({ params, request }) => {
     const gamemode = 'Progressive'
 
     if (submitType == 'submit') {
+      console.log('subasdfasdf')
       const newScore = await createScore({ score, gamemode, userId, boardId, boardSize, userName})
     }
-
-    for (let i = 0; i < 3765; i++) {
-      boardData += Math.floor(Math.random() * 5)
+    if (submitType == 'newBoard') {
+      for (let i = 0; i < 3765; i++) {
+        boardData += Math.floor(Math.random() * 5)
+      }
+      const newBoard = await createBoard({ size: '18', boardData, userId})
+      return redirect(`/proggame/${newBoard.id}`)
     }
-
-    const newBoard = await createBoard({ size: '18', boardData, userId})
-    return redirect(`/proggame/${newBoard.id}`)
+    return null
   }
 
 const colors = ['var(--red)', 'var(--orange)', 'var(--yellow)', 'var(--green)', 'var(--blue)']
@@ -102,6 +104,8 @@ let hasRun = false
 let startPoint
 let growthArr
 let tempSquareArr
+let turnLogArr = []
+let fullTurnLogArr = []
 let hole = 0
 
 
@@ -123,6 +127,9 @@ function App() {
   const [boardSize, setBoardSize] = useState(dimensions)
   const [grid, setGrid] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
+  const [complete, setComplete] = useState(false)
+
+  const [turnLog, setTurnLog] = useState(turnLogArr)
 
   const [palColor, setPalColor] = useState(null)
   
@@ -152,6 +159,11 @@ function App() {
         dimensions = (parseInt(localStorage.getItem('dimensions')))
         hole = parseInt(localStorage.getItem('hole'))
         roundNumber = parseInt(localStorage.getItem('roundNumber'))
+        fullTurnLogArr = JSON.parse(localStorage.getItem('fullLogArr'))
+        if (fullTurnLogArr[hole] != undefined) {
+          turnLogArr = [...fullTurnLogArr[hole]]
+        }
+        console.log(fullTurnLogArr)
         setSelectedColor(localStorage.getItem('selectedColor'))
         setBoardSize(dimensions)
         setPar(parValue)
@@ -160,6 +172,7 @@ function App() {
         setSquareCounter(squareCounterArr)
         setCount(turnCount)
         setHoleNumber(hole)
+        setTurnLog(turnLogArr)
       }
       else {
         tempSquareArr = JSON.parse(JSON.stringify(data.squareData[hole]))
@@ -171,6 +184,11 @@ function App() {
             })
         })
       }
+      console.log(tempSquareArr[0])
+      // turnLogArr = [...Array(18).map(e => Array(18))]
+      // fullTurnLogArr = [...Array(18).map(e => Array(18))]
+      fullTurnLogArr = [[]]
+
       setSquareCounter(squareCounterArr)
       data.squareGrowth[0][0] = 'captured'
       setGrowth(data.squareGrowth)
@@ -198,6 +216,7 @@ function App() {
   function colorChange(color) {
     tempSquareArr = JSON.parse(JSON.stringify(data.squareData[hole]))
     setColorState(tempSquareArr)
+    let numberCaptured = totalCaptured
     data.squareGrowth[hole].map((e, index) => {
       if (e == 'predicted') {
         data.squareGrowth[hole][index] = false
@@ -216,26 +235,44 @@ function App() {
     if (radarActive) {
       tempSquareArr = JSON.parse(JSON.stringify(data.squareData[hole]))
     } 
+    if (!radarActive) {
+      numberCaptured = totalCaptured - numberCaptured
+      let captureObj = {
+        captured: numberCaptured,
+        color: color
+      }
+      turnLogArr.push(captureObj)
+      fullTurnLogArr[hole] = [...turnLogArr]
+      let newArrayCauseReactIsLame = [...turnLogArr]
+      setTurnLog(newArrayCauseReactIsLame)
+    }
     data.squareData[hole] = JSON.parse(JSON.stringify(tempSquareArr))
-    console.log('tempSquareArr')
-    console.log(tempSquareArr)
-    console.log('squaredata')
-    console.log(data.squareData[hole])
-
-
     if (turnCount >= 1) {
       saveBoardInfo(color)
     }
-
     if (totalCaptured >= (boardSize * boardSize) - 1) {
         currentRoundValue = turnCount - parValue
         setRoundScore(currentRoundValue)
         totalScoreValue += currentRoundValue
         setTotalScore(totalScoreValue)
         roundNumber <= 17 ? document.querySelector('.roundDialog').show() : document.querySelector('.endDialog').show()
-        // roundNumber >= 17 && localStorage.setItem('playing', 'false')
+        // roundNumber > 17 && localStorage.setItem('playing', 'false')
+        roundNumber > 17 && setComplete(true)
     }
+    console.log(localStorage.getItem('fullLogArr'))
+    console.log(JSON.parse(localStorage.getItem('fullLogArr')))
   }
+
+  useEffect(() => {
+    let x = document.querySelectorAll('.row')
+    document.querySelectorAll('.row') != null && document.querySelectorAll('.row')[x.length - 1].scrollIntoView({ behavior: "smooth", block: "end", inline: "nearest" });
+  }, [turnLog])
+
+  useEffect(() => {
+    if (complete) {
+      fetcher.submit(document.querySelector('.scoreData'))
+    }
+  }, [complete])
 
   function updateSquareCount(color) {
     squareCounterArr.forEach(sq => {
@@ -361,6 +398,9 @@ function App() {
     data.squareData[hole] = JSON.parse(JSON.stringify(tempSquareArr))
     let color = tempSquareArr[0].color
     saveBoardInfo(color)
+    turnLogArr = []
+    fullTurnLogArr.push(turnLogArr)
+    setTurnLog(turnLogArr)
     document.querySelector('.roundDialog').close()
   }
 
@@ -373,20 +413,7 @@ function App() {
         data.squareGrowth[hole][index] = false
       }
     })
-    // data.squareGrowth.forEach(arr => {
-    //   arr.forEach((e, index) => {
-    //     if (e == 'predicted') {
-    //       data.squareGrowth[hole][index] = false
-    //     }
-    //   })
-    // })
-
-    
-    // data.squareGrowth.map((e, index) => {
-    //   if (e == 'predicted') {
-    //     data.squareGrowth[hole][index] = false
-    //   }
-    // })
+   
     setGrowth(data.squareGrowth[hole])
   }
 
@@ -428,6 +455,7 @@ function App() {
       localStorage.setItem('par', parValue)
       localStorage.setItem('roundNumber', roundNumber)
       localStorage.setItem('playing', 'true')
+      localStorage.setItem('fullLogArr', JSON.stringify(fullTurnLogArr))
       localStorage.setItem('gamemode', 'progressive')
   }
 
@@ -442,6 +470,16 @@ function App() {
         <h2>You finished this round {roundScore > 0 ? `+${roundScore}` : roundScore} {roundScore <= 0 ? 'under' : 'over'} par!</h2>
         <button onClick={handleReset}>Next Round</button>
     </dialog>
+    <dialog className='scoreDialog'>
+        <fetcher.Form className='scoreData' reloadDocument method='post'>
+            <input type='hidden' name='score' value={totalScore > 0 ? `+${totalScore}` : totalScore}></input>
+            <input type='hidden' name='boardId' value={boardId}></input>
+            <input type='hidden' value={boardId} name='boardId'></input>
+            <input type='hidden' name='boardSize' value={'18'}></input>
+            <input type='hidden' value={user.username} name='username'></input>
+            <input type='hidden' value={'submit'} name='submitType'></input>
+          </fetcher.Form>
+      </dialog>
     <dialog className='endDialog'>
         <fetcher.Form reloadDocument method='post'>
             <h2>Game Over!</h2>
@@ -450,8 +488,8 @@ function App() {
             <input type='hidden' name='boardId' value={boardId}></input>
             <input type='hidden' name='boardSize' value={'18'}></input>
             <input type='hidden' value={user.username} name='username'></input>
-            <input type='hidden' value={'submit'} name='submitType'></input>
-            <button type='submit'>Submit</button>
+            <input type='hidden' value={'newBoard'} name='submitType'></input>
+            <button type='submit'>New Board</button>
         </fetcher.Form>
     </dialog>
     <div className='gameContainer'>
@@ -471,7 +509,7 @@ function App() {
         <div className='extraRow'>
             <div className='resetButton'>
               <fetcher.Form reloadDocument method='post'>
-                <input type='hidden' value='reset' name='submitType'></input>
+                <input type='hidden' value='newBoard' name='submitType'></input>
                 <button type='submit'>New Board</button>
               </fetcher.Form>
             </div>
@@ -516,6 +554,28 @@ function App() {
           <h3>Grid View</h3>
           <input id='grid' type='checkbox' value='1px solid black' checked={grid} name='grid' onChange={handleGridToggle}></input>
           <label htmlFor='grid'>Grid</label>
+        </div>
+        <div className='turnLog'>
+          <h3>Turn Log</h3>
+          <div className='turnLogBox'>
+            <div className='row'>
+              <h3>Turn</h3>
+              <h3>Captured</h3>
+            </div>
+            {turnLog && turnLog.map((row, index) => {
+              return (
+                <div key={index} className='row'>
+                <h3>{index + 1}</h3>
+                <div className='turnInfo'>
+                  <div className='fakeSquare' style={{background: turnLog[index].color}}>
+                    <h4>{turnLog[index].captured}</h4>
+                  </div>
+                </div>
+              </div>
+              )
+            })}
+            <div className='anchor'></div>
+          </div>
         </div>
         <div className='colorPalette'>
           <div className='colorHolder selectedPalette'>
