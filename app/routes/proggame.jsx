@@ -559,11 +559,11 @@ function App() {
         </div>
         <div className='turnLog'>
           <h3>Turn Log</h3>
+          <div className='row'>
+                <h3>Turn</h3>
+                <h3>Captured</h3>
+              </div>
           <div className='turnLogBox'>
-            <div className='row'>
-              <h3>Turn</h3>
-              <h3>Captured</h3>
-            </div>
             {turnLog && turnLog.map((row, index) => {
               return (
                 <div key={index} className='row'>
