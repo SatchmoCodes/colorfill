@@ -154,7 +154,7 @@ const leaderboard = () => {
                 <div className="row" key={score.id}>
                     <h2>{score.userName}</h2>
                     <h2>{score.gamemode}</h2>
-                    <h2>{score.score}</h2>
+                    <h2>{score.gamemode == 'Progressive' && score.score > 0 ? '+' + score.score : score.score}</h2>
                     <h2>{score.boardSize}</h2>
                     <h2 className='playBoard' id={score.boardId} data-gamemode={score.gamemode} onClick={(event) => handleRedirect(event)}>Play this board</h2>
                 </div>

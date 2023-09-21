@@ -446,6 +446,10 @@ function App() {
   }
 
   function handlePaletteSwap(event) {
+    // document.querySelectorAll('.colorHolder').forEach(e => {
+    //   e.classList.remove('selected')
+    // })
+    // event.currentTarget.classList.add('selected')
     const colors = ['--red', '--orange', '--yellow', '--green', '--blue']
     // for (let i = 0; i < 5; i++) {
     //   document.documentElement.style.setProperty(colors[i], `${event.target.parentElement.querySelectorAll('.palColor')[i].style.background}`);
@@ -459,6 +463,11 @@ function App() {
   function handleOpen() {
     setIsOpen(!isOpen)
   }
+
+  useEffect(() => {
+    let x = document.querySelectorAll('.row')
+    x != null && document.querySelectorAll('.row')[x.length - 1].scrollIntoView({ behavior: "smooth", block: "end", inline: "nearest" });
+  }, [isOpen])
 
   return (
     <div className='gameContainer'>
@@ -569,11 +578,11 @@ function App() {
         </div>
         <div className='turnLog'>
           <h3>Turn Log</h3>
-          <div className='turnLogBox'>
-            <div className='row'>
+          <div className='row'>
               <h3>Turn</h3>
               <h3>Captured</h3>
             </div>
+          <div className='turnLogBox'>
             {turnLog && turnLog.map((row, index) => {
               return (
                 <div className='row'>
@@ -613,8 +622,8 @@ function App() {
             <div className='palColor' style={{background: 'hsl(213, 68.6%, 90%)'}}></div>
           </div>
           <div className='colorHolder' onClick={handlePaletteSwap}>
-            <div className='palColor' style={{background: 'hsl(2,72%,51%)'}}></div>
             <div className='palColor' style={{background: 'hsl(358,83%,35%)'}}></div>
+            <div className='palColor' style={{background: 'hsl(2,72%,51%)'}}></div>
             <div className='palColor' style={{background: 'hsl(211,88%,32%)'}}></div>
             <div className='palColor' style={{background: 'hsl(0,0%,39%)'}}></div>
             <div className='palColor' style={{background: 'hsl(0,0%,14%)'}}></div>
@@ -646,6 +655,13 @@ function App() {
             <div className='palColor' style={{background: 'hsl(55, 47%, 78%)'}}></div>
             <div className='palColor' style={{background: 'hsl(48,99%,59%)'}}></div>
             <div className='palColor' style={{background: 'hsl(27, 55%, 33%)'}}></div>
+          </div>
+          <div className='colorHolder' onClick={handlePaletteSwap}>
+            <div className='palColor' style={{background: 'hsl(0, 0%, 93%)'}}></div>
+            <div className='palColor' style={{background: 'hsl(207, 61%, 30%)'}}></div>
+            <div className='palColor' style={{background: 'hsl(15, 97%, 74%)'}}></div>
+            <div className='palColor' style={{background: 'hsl(167, 98%, 74%)'}}></div>
+            <div className='palColor' style={{background: 'hsl(167, 51%, 46%'}}></div>
           </div>
         </div>
         <div className='link'>

@@ -611,8 +611,8 @@ function App() {
             <div className='palColor' style={{background: 'hsl(213, 68.6%, 90%)'}}></div>
           </div>
           <div className='colorHolder' onClick={handlePaletteSwap}>
-            <div className='palColor' style={{background: 'hsl(2,72%,51%)'}}></div>
             <div className='palColor' style={{background: 'hsl(358,83%,35%)'}}></div>
+            <div className='palColor' style={{background: 'hsl(2,72%,51%)'}}></div>
             <div className='palColor' style={{background: 'hsl(211,88%,32%)'}}></div>
             <div className='palColor' style={{background: 'hsl(0,0%,39%)'}}></div>
             <div className='palColor' style={{background: 'hsl(0,0%,14%)'}}></div>
@@ -644,6 +644,13 @@ function App() {
             <div className='palColor' style={{background: 'hsl(55, 47%, 78%)'}}></div>
             <div className='palColor' style={{background: 'hsl(48,99%,59%)'}}></div>
             <div className='palColor' style={{background: 'hsl(27, 55%, 33%)'}}></div>
+          </div>
+          <div className='colorHolder' onClick={handlePaletteSwap}>
+            <div className='palColor' style={{background: 'hsl(0, 0%, 93%)'}}></div>
+            <div className='palColor' style={{background: 'hsl(207, 61%, 30%)'}}></div>
+            <div className='palColor' style={{background: 'hsl(15, 97%, 74%)'}}></div>
+            <div className='palColor' style={{background: 'hsl(167, 98%, 74%)'}}></div>
+            <div className='palColor' style={{background: 'hsl(167, 51%, 46%'}}></div>
           </div>
         </div>
         <div className='link'>

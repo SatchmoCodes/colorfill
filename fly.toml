@@ -1,4 +1,4 @@
-# fly.toml app configuration file generated for colorfill on 2023-09-10T23:31:13-04:00
+# fly.toml app configuration file generated for colorfill on 2023-09-21T11:44:47-04:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
@@ -8,9 +8,9 @@ primary_region = "iad"
 
 [build]
 
-[mounts]
-  source='colorfill_data'
-  destination='/data'
+[[mounts]]
+  source = "colorfill_data"
+  destination = "/data"
 
 [http_service]
   internal_port = 3000
