@@ -15,17 +15,9 @@ export const loader = async ({ request }) => {
 
 export const action = async ({ request }) => {
   const formData = await request.formData();
-  const email = formData.get("email");
   const username = formData.get("username")
   const password = formData.get("password");
   const redirectTo = safeRedirect(formData.get("redirectTo"), "/");
-
-  if (!validateEmail(email)) {
-    return json(
-      { errors: { email: "Email is invalid", password: null } },
-      { status: 400 }
-    );
-  }
 
   if (typeof username !== "string" || username.length === 0) {
     return json(
@@ -55,18 +47,6 @@ export const action = async ({ request }) => {
     );
   }
 
-  const existingUser = await getUserByEmail(email);
-  if (existingUser) {
-    return json(
-      {
-        errors: {
-          email: "A user already exists with this email",
-          password: null,
-        },
-      },
-      { status: 400 }
-    );
-  }
 
   const existingUserName = await getUserByUsername(username)
   if (existingUserName) {
@@ -81,7 +61,7 @@ export const action = async ({ request }) => {
     )
   }
 
-  const user = await createUser(email, password, username);
+  const user = await createUser(username, password);
 
   return createUserSession({
     redirectTo,
@@ -97,14 +77,11 @@ export default function Join() {
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") ?? undefined;
   const actionData = useActionData();
-  const emailRef = useRef(null);
   const usernameRef = useRef(null)
   const passwordRef = useRef(null);
 
   useEffect(() => {
-    if (actionData?.errors?.email) {
-      emailRef.current?.focus();
-    } else if (actionData?.errors?.username) {
+  if (actionData?.errors?.username) {
       usernameRef.current?.focus()
       } else if (actionData?.errors?.password) {
         passwordRef.current?.focus();
@@ -115,35 +92,6 @@ export default function Join() {
     <div className="flex min-h-full flex-col justify-center">
       <div className="mx-auto w-full max-w-md px-8">
         <Form method="post" className="space-y-6">
-          <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Email address
-            </label>
-            <div className="mt-1">
-              <input
-                ref={emailRef}
-                id="email"
-                required
-                autoFocus={true}
-                name="email"
-                type="email"
-                autoComplete="email"
-                aria-invalid={actionData?.errors?.email ? true : undefined}
-                aria-describedby="email-error"
-                className="w-full rounded border border-gray-500 px-2 py-1 text-lg"
-              />
-
-              {actionData?.errors?.email ? (
-                <div className="pt-1 text-red-700" id="email-error">
-                  {actionData.errors.email}
-                </div>
-              ) : null}
-            </div>
-          </div>
-
           <div>
             <label
               htmlFor="username"

@@ -38,7 +38,7 @@ export function useMatchesData(id) {
 }
 
 function isUser(user) {
-  return user && typeof user === "object" && typeof user.email === "string";
+  return user && typeof user === "object"
 }
 
 export function useOptionalUser() {

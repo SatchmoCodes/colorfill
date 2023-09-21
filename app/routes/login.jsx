@@ -15,52 +15,45 @@ export const loader = async ({ request }) => {
 
 export const action = async ({ request }) => {
   const formData = await request.formData();
-  const email = formData.get("email");
   const username = formData.get("username")
   const password = formData.get("password");
   const redirectTo = safeRedirect(formData.get("redirectTo"), "/");
   const remember = formData.get("remember");
 
-  if (!validateEmail(email)) {
-    return json(
-      { errors: { email: "Email is invalid", password: null } },
-      { status: 400 }
-    );
-  }
 
   if (typeof username !== "string" || username.length === 0) {
     return json(
-      {errors: { email: null, username: 'Username is required', password: null}},
+      {errors: { username: 'Username is required', password: null}},
       { status: 400}
     )
   }
 
   if (username.length > 30) {
     return json(
-      {errors: { email: null, username: 'Username is too long', password: null}},
+      {errors: { username: 'Username is too long', password: null}},
       { status: 400}
     )
   }
 
   if (typeof password !== "string" || password.length === 0) {
     return json(
-      { errors: { email: null, username: null, password: "Password is required" } },
+      { errors: { username: null, password: "Password is required" } },
       { status: 400 }
     );
   }
 
   if (password.length < 8) {
     return json(
-      { errors: { email: null, password: "Password is too short" } },
+      { errors: { username: null, password: "Password is too short" } },
       { status: 400 }
     );
   }
 
-  const user = await verifyLogin(email, username, password);
+  const user = await verifyLogin(username, password);
 
   if (!user) {
     return json(
-      { errors: { email: "Invalid email, username or password", password: null } },
+      { errors: { username: "Invalid username or password", password: null } },
       { status: 400 }
     );
   }
@@ -79,14 +72,11 @@ export default function LoginPage() {
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") || "/";
   const actionData = useActionData();
-  const emailRef = useRef(null);
   const usernameRef = useRef(null)
   const passwordRef = useRef(null);
 
   useEffect(() => {
-    if (actionData?.errors?.email) {
-      emailRef.current?.focus();
-    } else if (actionData?.errors?.username) {
+    if (actionData?.errors?.username) {
       usernameRef.current?.focus()
       }
       else if (actionData?.errors?.password) {
@@ -98,35 +88,6 @@ export default function LoginPage() {
     <div className="wrap">
       <div className="mx-auto w-full max-w-md px-8">
         <Form method="post" className="space-y-6">
-          <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Email address
-            </label>
-            <div className="mt-1">
-              <input
-                ref={emailRef}
-                id="email"
-                required
-                autoFocus={true}
-                name="email"
-                type="email"
-                autoComplete="email"
-                aria-invalid={actionData?.errors?.email ? true : undefined}
-                aria-describedby="email-error"
-                className="w-full rounded border border-gray-500 px-2 py-1 text-lg"
-              />
-
-              {actionData?.errors?.email ? (
-                <div className="pt-1 text-red-700" id="email-error">
-                  {actionData.errors.email}
-                </div>
-              ) : null}
-            </div>
-          </div>
-
           <div>
             <label
               htmlFor="username"
