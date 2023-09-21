@@ -19,15 +19,17 @@ function generateBoard(colorString) {
     for (let x = 0; x < colorString.length; x++) {
         colorArr.push(colors[colorString[x]])
     }
+    let j = 0
     for (let y = 5; y < 23; y++) {
         let dimensions = y
         i = 0
         let squareArr = new Array(dimensions).fill(0).map((_, rowIndex) => new Array(dimensions).fill(0).map((_, colIndex) => ({ value: 0, rowIndex, colIndex })))
         squareArr.forEach(row => {
             row.forEach(({sq, rowIndex, colIndex}) => {
-                let square = new Square(rowIndex, colIndex, colorArr[i], colorArr[i], colorArr[i], i)
+                let square = new Square(rowIndex, colIndex, colorArr[j], colorArr[j], colorArr[j], i)
                 row.splice(colIndex, 1, square)
                 i++
+                j++
             })
         })
         squareArr[0][0].captured = true
