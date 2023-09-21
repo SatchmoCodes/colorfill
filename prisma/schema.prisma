@@ -44,9 +44,10 @@ model Note {
 
 model Scores {
   id          String   @unique @default(cuid())
-  score       String
+  score       Int
   completedAt DateTime @default(now())
   gamemode    String
+  turnlog String
 
   user   User   @relation(fields: [userId, userName], references: [id, username])
   userId String

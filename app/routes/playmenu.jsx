@@ -50,9 +50,8 @@ export const action = async ({ request }) => {
     return redirect(`/game/${board.id}`)
   }
   else if (gamemode == 'progressive') {
-    //3765 is the exact value but changing value to 3844 not break loaders on leaderboard
     const size = '18'
-    for (let i = 0; i < 3844; i++) {
+    for (let i = 0; i < 3765; i++) {
       boardData += Math.floor(Math.random() * 5)
     }
     const board = await createBoard({ size, boardData, userId})

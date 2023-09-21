@@ -38,17 +38,19 @@ export const loader = async ({ params, request }) => {
   export const action = async ({ request }) => {
     const userId = await requireUserId(request)
     const formData = await request.formData()
-    const score = formData.get('score')
+    let score = formData.get('score')
+    score = parseInt(score)
     const boardId = formData.get('boardId')
     const userName = formData.get('username')
     const submitType = formData.get('submitType')
+    const turnlog = formData.get('turnLog')
     let boardSize = formData.get('boardSize')
     let boardData = ''
     const gamemode = 'Progressive'
 
     if (submitType == 'submit') {
       console.log('subasdfasdf')
-      const newScore = await createScore({ score, gamemode, userId, boardId, boardSize, userName})
+      const newScore = await createScore({ score, gamemode, turnlog, userId, boardId, boardSize, userName})
     }
     if (submitType == 'newBoard') {
       for (let i = 0; i < 3765; i++) {
@@ -106,6 +108,7 @@ let growthArr
 let tempSquareArr
 let turnLogArr = []
 let fullTurnLogArr = []
+let turnLogJSON
 let hole = 0
 
 
@@ -256,8 +259,13 @@ function App() {
         totalScoreValue += currentRoundValue
         setTotalScore(totalScoreValue)
         roundNumber <= 17 ? document.querySelector('.roundDialog').show() : document.querySelector('.endDialog').show()
-        // roundNumber > 17 && localStorage.setItem('playing', 'false')
-        roundNumber > 17 && setComplete(true)
+        if (roundNumber >  17) {
+          setComplete(true)
+          localStorage.setItem('playing', 'false')
+          let turnLogObj = new Object()
+          turnLogObj.turnLog = fullTurnLogArr
+          turnLogJSON = JSON.stringify(turnLogObj)
+        }
     }
     console.log(localStorage.getItem('fullLogArr'))
     console.log(JSON.parse(localStorage.getItem('fullLogArr')))
@@ -472,10 +480,11 @@ function App() {
     </dialog>
     <dialog className='scoreDialog'>
         <fetcher.Form className='scoreData' reloadDocument method='post'>
-            <input type='hidden' name='score' value={totalScore > 0 ? `+${totalScore}` : totalScore}></input>
+            <input type='hidden' name='score' value={totalScore}></input>
             <input type='hidden' name='boardId' value={boardId}></input>
             <input type='hidden' value={boardId} name='boardId'></input>
             <input type='hidden' name='boardSize' value={'18'}></input>
+            <input type='hidden' name='turnLog' value={turnLogJSON}></input>
             <input type='hidden' value={user.username} name='username'></input>
             <input type='hidden' value={'submit'} name='submitType'></input>
           </fetcher.Form>
@@ -484,7 +493,7 @@ function App() {
         <fetcher.Form reloadDocument method='post'>
             <h2>Game Over!</h2>
             <h3>You finished {totalScore > 0 ? `+${totalScore}` : totalScore} {totalScore <= 0 ? 'under' : 'over'} par!</h3>
-            <input type='hidden' name='score' value={totalScore > 0 ? `+${totalScore}` : totalScore}></input>
+            <input type='hidden' name='score' value={totalScore}></input>
             <input type='hidden' name='boardId' value={boardId}></input>
             <input type='hidden' name='boardSize' value={'18'}></input>
             <input type='hidden' value={user.username} name='username'></input>

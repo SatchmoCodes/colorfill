@@ -43,11 +43,12 @@ export function getUserQueryResult({ username, gamemode, size, order }) {
     })
 }
 
-export function createScore({score, gamemode, userId, boardId, boardSize, userName}) {
+export function createScore({score, gamemode, turnlog, userId, boardId, boardSize, userName}) {
     return prisma.scores.create({
         data: {
             score,
             gamemode,
+            turnlog,
             user: {
                 connect: {
                     id: userId,

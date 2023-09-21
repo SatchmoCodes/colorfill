@@ -67,10 +67,11 @@ export const action = async ({ request }) => {
   }
 
   if (submitType == 'submit') {
-    const score = formData.get('score')
+    let score = formData.get('score')
     const boardId = formData.get('boardId')
+    const turnLog = formData.get('turnLog')
     let boardSize = formData.get('boardSize')
-    console.log(score)
+    score = parseInt(score)
     switch(boardSize) {
       case '10':
         boardSize = 'Small'
@@ -82,7 +83,7 @@ export const action = async ({ request }) => {
         boardSize = 'Large'
         break;
     }
-    const newScore = await createScore({ score, gamemode, userId, boardId, boardSize, userName })
+    const newScore = await createScore({ score, gamemode, turnlog: turnLog, userId, boardId, boardSize, userName })
   }
 
   if (submitType == 'newBoard') {
@@ -135,6 +136,7 @@ let squareCounterArr = [
 
 let tempSquareArr
 let turnLogArr = []
+let turnLogJSON
 let numberCaptured = 0
 let hasRun = false
 
@@ -267,6 +269,9 @@ function App() {
 
     if (totalCaptured >= (boardSize * boardSize) - 1) {
       setComplete(true)
+      let turnLogObj = new Object()
+      turnLogObj.turnLog = turnLogArr
+      turnLogJSON = JSON.stringify(turnLogObj)
       localStorage.setItem('playing', 'false')
       if (turnCount < highScore || highScore == null) {
         setHighScore(turnCount)
@@ -464,6 +469,7 @@ function App() {
             <input type='hidden' value={boardSize} name='boardSize'></input>
             <input type='hidden' value={boardId} name='boardId'></input>
             <input type='hidden' value={newBoardSize} name='newBoardSize'></input>
+            <input type='hidden' value={turnLogJSON} name='turnLog'></input>
             <input type='hidden' value={user.username} name='username'></input>
             <input type='hidden' value={'submit'} name='submitType'></input>
           </fetcher.Form>
@@ -471,11 +477,7 @@ function App() {
       <dialog className='endDialog'>
         <fetcher.Form className='formData' reloadDocument method='post' action='/game'>
           <h2>You completed the board in {count} turns!</h2>
-          <input type='hidden' value={turnCount} name='score'></input>
-          <input type='hidden' value={boardSize} name='boardSize'></input>
-          <input type='hidden' value={boardId} name='boardId'></input>
           <input type='hidden' value={newBoardSize} name='newBoardSize'></input>
-          <input type='hidden' value={user.username} name='username'></input>
           <input type='hidden' value={'newBoard'} name='submitType'></input>
           <button type='submit'>New Board</button>
         </fetcher.Form>
