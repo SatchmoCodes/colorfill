@@ -314,7 +314,7 @@ function App() {
         !radarActive && totalCaptured++
         !radarActive ? data.squareGrowth[hole][index + 1] = 'captured' : data.squareGrowth[hole][index + 1] = 'predicted'
         setGrowth(data.squareGrowth[hole])
-        tempSquareArr[index + 1].colIndex <= dimensions - 2 && captureCheck(color, index + 1)
+        tempSquareArr[index + 1].colIndex <= dimensions && captureCheck(color, index + 1)
       }
     }
     //left
@@ -326,7 +326,7 @@ function App() {
         !radarActive && totalCaptured++
         !radarActive ? data.squareGrowth[hole][index - 1] = 'captured' : data.squareGrowth[hole][index - 1] = 'predicted'
         setGrowth(data.squareGrowth[hole])
-        tempSquareArr[index - 1].colIndex <= dimensions - 2 && captureCheck(color, index - 1)
+        tempSquareArr[index - 1].colIndex <= dimensions && captureCheck(color, index - 1)
       }
     }
     // // // // down
@@ -338,7 +338,7 @@ function App() {
         !radarActive && totalCaptured++
         !radarActive ? data.squareGrowth[hole][index + dimensions] = 'captured' : data.squareGrowth[hole][index + dimensions] = 'predicted'
         setGrowth(data.squareGrowth[hole])
-        tempSquareArr[index + dimensions].rowIndex <= dimensions - 2 && captureCheck(color, index + dimensions)
+        tempSquareArr[index + dimensions].rowIndex <= dimensions && captureCheck(color, index + dimensions)
       }
     }
     // // //up
@@ -350,7 +350,7 @@ function App() {
         !radarActive && totalCaptured++
         !radarActive ? data.squareGrowth[hole][index - dimensions] = 'captured' : data.squareGrowth[hole][index - dimensions] = 'predicted'
         setGrowth(data.squareGrowth[hole])
-        tempSquareArr[index - dimensions].rowIndex <= dimensions - 2 && captureCheck(color, index - dimensions)
+        tempSquareArr[index - dimensions].rowIndex <= dimensions && captureCheck(color, index - dimensions)
       }
     }
   }

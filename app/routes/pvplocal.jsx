@@ -293,7 +293,7 @@ function App() {
         !radarActive && totalCaptured++
         !radarActive ? data.squareGrowth[index + 1] = `captured ${captureColor}` : data.squareGrowth[index + 1] = 'predicted'
         setGrowth(data.squareGrowth)
-        tempSquareArr[index + 1].colIndex <= boardSize - 2 && captureCheck(color, index + 1, player)
+        tempSquareArr[index + 1].colIndex <= boardSize && captureCheck(color, index + 1, player)
       }
     }
     //left
@@ -306,7 +306,7 @@ function App() {
         !radarActive && totalCaptured++
         !radarActive ? data.squareGrowth[index - 1] = `captured ${captureColor}` : data.squareGrowth[index - 1] = 'predicted'
         setGrowth(data.squareGrowth)
-        tempSquareArr[index - 1].colIndex <= boardSize - 2 && captureCheck(color, index - 1, player)
+        tempSquareArr[index - 1].colIndex <= boardSize && captureCheck(color, index - 1, player)
       }
     }
     // // // // down
@@ -332,7 +332,7 @@ function App() {
         !radarActive && totalCaptured++
         !radarActive ? data.squareGrowth[index - boardSize] = `captured ${captureColor}` : data.squareGrowth[index - boardSize] = 'predicted'
         setGrowth(data.squareGrowth)
-        tempSquareArr[index - boardSize].rowIndex <= boardSize - 2 && captureCheck(color, index - boardSize, player)
+        tempSquareArr[index - boardSize].rowIndex <= boardSize && captureCheck(color, index - boardSize, player)
       }
     }
   }
@@ -350,7 +350,7 @@ function App() {
           !radarActive && totalCaptured++
           !radarActive ? data.squareGrowth[index + 1] = `captured ${captureColor}` : data.squareGrowth[index + 1] = 'predicted'
           setGrowth(data.squareGrowth)
-          tempSquareArr[index + 1].colIndex <= boardSize - 2 && captureCheck(color, index + 1, player)
+          tempSquareArr[index + 1].colIndex <= boardSize && captureCheck(color, index + 1, player)
         }
       }
   }
