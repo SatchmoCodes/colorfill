@@ -43,7 +43,7 @@ export const action = async ({ request }) => {
 
   if (gamemode == 'freeplay') {
     const size = 'Medium'
-    for (let i = 0; i < 400; i++) {
+    for (let i = 0; i < 225; i++) {
       boardData+= Math.floor(Math.random() * 5)
     }
     const board = await createBoard({ size, boardData, userId})

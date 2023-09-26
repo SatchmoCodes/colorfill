@@ -24,6 +24,7 @@ export function getQueryResult({ gamemode, size, order }) {
         } },
         select: { id: true, gamemode: true, score: true, boardId: true, boardSize: true, userName: true},
         orderBy: { score: order},
+        distinct: ['boardId'],
         take: 100
     })
 }
@@ -39,6 +40,7 @@ export function getUserQueryResult({ username, gamemode, size, order }) {
         } },
         select: { id: true, gamemode: true, score: true, boardId: true, boardSize: true, userName: true},
         orderBy: { score: order},
+        distinct: ['boardId'],
         take: 100
     })
 }
@@ -72,3 +74,14 @@ export function getBestScore({ userId, size, gamemode }) {
         orderBy: { score: 'asc'}
     })
 }
+
+export function getBestBoardScore({ boardId }) {
+    return prisma.scores.findFirst({
+        select: {score: true, userName: true, turnlog: true},
+        where: {boardId: boardId},
+        orderBy: {score: 'asc'}
+    })
+}
+
+
+

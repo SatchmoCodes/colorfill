@@ -19,7 +19,7 @@ import { getBoard } from '~/models/board.server'
 import invariant from "tiny-invariant";
 
 import { useFetcher } from "@remix-run/react";
-import { getBestScore } from '../models/score.server';
+import { getBestScore, getBestBoardScore } from '../models/score.server';
 
 
 
@@ -36,8 +36,14 @@ export const loader = async ({ params, request }) => {
   let squareData = generateBoard(board.boardData).flat()
   let squareGrowth = new Array(board.boardData.length).fill(false)
   let bestScore = await getBestScore({ userId, gamemode: 'Free Play', size: board.size})
-
-  return json({ board, squareData, squareGrowth, bestScore });
+  const bestGlobalScore = await getBestBoardScore({ boardId: board.id})
+  if (bestGlobalScore) {
+    return json({ board, squareData, squareGrowth, bestScore, bestGlobalScore })
+  }
+  else {
+    return json({ board, squareData, squareGrowth, bestScore });
+  }
+  
 };
 
 
@@ -58,10 +64,10 @@ export const action = async ({ request }) => {
     case '10':
       newBoardSize = 'Small'
       break;
-    case '20':
+    case '15':
       newBoardSize = 'Medium'
       break;
-    case '30':
+    case '20':
       newBoardSize = 'Large'
       break;
   }
@@ -76,10 +82,10 @@ export const action = async ({ request }) => {
       case '10':
         boardSize = 'Small'
         break;
-      case '20':
+      case '15':
         boardSize = 'Medium'
         break;
-      case '30':
+      case '20':
         boardSize = 'Large'
         break;
     }
@@ -161,10 +167,10 @@ function App() {
   const [complete, setComplete] = useState(false)
 
   const [turnLog, setTurnLog] = useState(turnLogArr)
+  const [oppTurnLog, setOppTurnLog] = useState(null)
 
   const [boardId, setBoardId] = useState(data.board.id)
-
-  console.log(turnLogArr)
+  console.log(oppTurnLog)
 
   useEffect(() => {
     if (!hasRun) {
@@ -207,7 +213,9 @@ function App() {
     localStorage.getItem('grid') == 'true' && setGrid(true)
     hasRun = true
     }
-
+    if (data.bestGlobalScore) {
+      setOppTurnLog(JSON.parse(data.bestGlobalScore.turnlog))
+    }
     for (let i = 0; i < 5; i++) {
       if (localStorage.getItem(paletteColors[i])) {
         document.documentElement.style.setProperty(paletteColors[i], localStorage.getItem(paletteColors[i]))
@@ -469,11 +477,20 @@ function App() {
     x != null && document.querySelectorAll('.row')[x.length - 1].scrollIntoView({ behavior: "smooth", block: "end", inline: "nearest" });
   }, [isOpen])
 
+
+  //load in new data
+  useEffect(() => {
+    if (data.bestGlobalScore) {
+      setOppTurnLog(JSON.parse(data.bestGlobalScore.turnlog))
+    }
+  }, [data])
+
+
   return (
     <div className='gameContainer'>
       <div className='settingsIcon' onClick={handleOpen}>{isOpen ? 'X' : 'O'}</div>
       <dialog className='scoreDialog'>
-        <fetcher.Form className='scoreData' reloadDocument method='post' action='/game'>
+        <fetcher.Form className='scoreData' method='post'>
             <input type='hidden' value={turnCount} name='score'></input>
             <input type='hidden' value={boardSize} name='boardSize'></input>
             <input type='hidden' value={boardId} name='boardId'></input>
@@ -493,7 +510,7 @@ function App() {
         <button type='submit' onClick={handleRetry}>Retry</button>
       </dialog>
     <section className={`left ${isOpen ? 'hide' : ''}`}>
-      <h1>{count}</h1>
+      <h1>{data.bestGlobalScore ? `${count} / ${data.bestGlobalScore.score}` : count}</h1>
       <div className='board' style={{gridTemplateColumns: `repeat(${boardSize}, 1fr)`, background: !radarActive ? selectedColor : 'white'}}>
         {data.squareData.map((sq, index) => {
           return (
@@ -527,7 +544,7 @@ function App() {
     </section>
     <section className='right'>
       <div className='scoreboard'>
-      <h2>High Score: {highScore != null && highScore}</h2>
+      <h2>{data.bestGlobalScore ? `Score to Beat: ${data.bestGlobalScore.score}` : `High Score: ${highScore}`}</h2>
       <h3>Squares Remaining</h3>
         <div className='squareRow'>
           <div className='fakeSquare' style={{background: 'var(--red)'}}>
@@ -557,11 +574,11 @@ function App() {
                 <label htmlFor='small'>Small</label>
               </div>
               <div className='option'>
-                <input id='medium' type='radio' name='size' checked={newBoardSize == '20'} value={20} onChange={handleSizeChange}/>
+                <input id='medium' type='radio' name='size' checked={newBoardSize == '15'} value={15} onChange={handleSizeChange}/>
                 <label htmlFor='medium'>Medium</label>
               </div>
               <div className='option'>
-                <input id='large' type='radio' name='size' checked={newBoardSize == '30'} value={30} onChange={handleSizeChange}/>
+                <input id='large' type='radio' name='size' checked={newBoardSize == '20'} value={20} onChange={handleSizeChange}/>
                 <label htmlFor='large'>Large</label>
               </div>
               {/* <div className='customOption'>
@@ -581,7 +598,12 @@ function App() {
           <div className='row'>
               <h3>Turn</h3>
               <h3>Captured</h3>
-            </div>
+          </div>
+          {data.bestGlobalScore && <div className='row'>
+              <h3></h3>
+              <h3>You</h3>
+              <h3>{data.bestGlobalScore.userName}</h3>
+          </div>}
           <div className='turnLogBox'>
             {turnLog && turnLog.map((row, index) => {
               return (
@@ -592,6 +614,14 @@ function App() {
                     <h4>{turnLog[index].captured}</h4>
                   </div>
                 </div>
+                {oppTurnLog != null && <div className='turnInfo'>
+                  <div className='fakeSquare' style={oppTurnLog.turnLog[index] && {background: oppTurnLog.turnLog[index].color}}>
+                    <h4>{oppTurnLog.turnLog[index] && oppTurnLog.turnLog[index].captured}</h4>
+                  </div>
+                  {/* <div className='fakeSquare' style={data.bestGlobalScore && {background: JSON.parse(data.bestGlobalScore.turnlog.turnLog[index]).color}}>
+                    <h4>{data.bestGlobalScore && JSON.parse(data.bestGlobalScore.turnlog.turnLog[index]).captured}</h4>
+                  </div> */}
+                </div>}
               </div>
               )
             })}

@@ -6,9 +6,10 @@ import { useSubmit } from "@remix-run/react"
 import { useState } from 'react'
 
 import { useUser } from "~/utils";
+import {prisma} from '~/db.server'
 import { requireUserId } from "~/session.server";
 import leaderboardstyles from '~/styles/leaderboard.css'
-import  { getBestScore, getScoreList, getQueryResult, getUserQueryResult, getAllScores } from "../models/score.server";
+import  { getBestScore, getScoreList, getQueryResult, getUserQueryResult, getAllScores, highScores } from "../models/score.server";
 
 let previousMode = 'Free Play'
 
@@ -46,6 +47,7 @@ export const loader = async ({ request }) => {
             scoreListItems = await getQueryResult({ gamemode, size, order })
         }
     }
+
     const bestSmallScore = await getBestScore({ userId, size: 'Small', gamemode: 'Free Play'  })
     const bestMediumScore = await getBestScore({ userId, size: 'Medium', gamemode: 'Free Play' })
     const bestLargeScore = await getBestScore({ userId, size: 'Large', gamemode: 'Free Play'  })
@@ -91,8 +93,6 @@ const leaderboard = () => {
         submit(event.currentTarget)
       
     }
-
-    console.log(data.scoreListItems)
     
   return (
     <>
@@ -113,14 +113,18 @@ const leaderboard = () => {
                 <h1>Global Leaderboard</h1>
             </div>
             <div className="row">
-                <h2>Username</h2>
+                <h2>Rank</h2>
+                <h2>User</h2>
                 <h2>Gamemode</h2>
-                <h2>Score</h2>
+                <h2 className="score">Score</h2>
                 <h2>Board Size</h2>
                 <h2>Board Code</h2>
             </div>
             <Form method='get' onChange={handleChange}>
                 <div className="row filters">
+                    <div>
+
+                    </div>
                     <div>
                         <input className='username' type="text" name="username"></input>
                     </div>
@@ -131,7 +135,7 @@ const leaderboard = () => {
                             <option value='PVP'>Player Vs Player</option>
                         </select>
                     </div>
-                    <div>
+                    <div className="score">
 
                     </div>
                     <div>
@@ -150,11 +154,12 @@ const leaderboard = () => {
                 </div>
             </Form>
             <>
-            {data.scoreListItems.length == 0 ? <h2 className="row">No results found</h2> : data.scoreListItems.map((score) => (
+            {data.scoreListItems.length == 0 ? <div className="row empty"><h2>No results found</h2></div> : data.scoreListItems.map((score, index) => (
                 <div className="row" key={score.id}>
+                    <h2>{index + 1}</h2>
                     <h2>{score.userName}</h2>
                     <h2>{score.gamemode}</h2>
-                    <h2>{score.gamemode == 'Progressive' && score.score > 0 ? '+' + score.score : score.score}</h2>
+                    <h2 className="score">{score.gamemode == 'Progressive' && score.score > 0 ? '+' + score.score : score.score}</h2>
                     <h2>{score.boardSize}</h2>
                     <h2 className='playBoard' id={score.boardId} data-gamemode={score.gamemode} onClick={(event) => handleRedirect(event)}>Play this board</h2>
                 </div>
