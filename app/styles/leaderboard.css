@@ -40,6 +40,19 @@
     width: 0;
     flex-grow: 1;
     padding: 1em;
+    border: 1px solid rgb(124, 124, 124);
+}
+
+.table .score {
+    max-width: 5%;
+}
+
+.table h2:nth-of-type(1) {
+    max-width: 5%;
+}
+
+.table .row div:nth-of-type(1) {
+    max-width: 5%;
 }
 
 .filters input {
@@ -54,6 +67,16 @@
     background-color: rgb(184, 201, 218);
 }
 
+.table .row:nth-of-type(1) {
+    background-color: white;
+}
+
+.table .empty, .table .empty h2 {
+    border: none;
+    width: 100%; 
+    max-width: 100%;   
+}
+
 .playBoard {
     color: purple;
     cursor: pointer;
@@ -62,7 +85,19 @@
 @media screen and (max-width: 1300px) {
     .table {
         font-size: 0.5em;
-        width: 95%;
+        width: 99%;
+    }
+
+    .table h2:nth-of-type(1) {
+        max-width: 10%;
+    }
+    
+    .table .row div:nth-of-type(1) {
+        max-width: 10%;
+    }
+
+    .table .score {
+        max-width: 10%;
     }
 
     input, select {
