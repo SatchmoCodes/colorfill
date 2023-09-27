@@ -14,7 +14,7 @@ import { getBoard } from '~/models/board.server'
 import invariant from "tiny-invariant";
 
 import { useFetcher } from "@remix-run/react";
-import { getBestScore } from '../models/score.server';
+import { getBestScore, getBestBoardScore } from '../models/score.server';
 
 
 export const loader = async ({ params, request }) => {
@@ -31,8 +31,14 @@ export const loader = async ({ params, request }) => {
         let newArr = new Array(arr.length).fill(false)
         squareGrowth.push(newArr)
     })
-    let bestScore = await getBestScore({ userId, gamemode: 'Progressive', size: '18' })
-    return json({ board, squareData, squareGrowth, bestScore });
+    let bestScore = await getBestScore({ userId, gamemode: 'Progressive', size: '10' })
+    const bestGlobalScore = await getBestBoardScore({ boardId: board.id})
+    if (bestGlobalScore) {
+      return json({ board, squareData, squareGrowth, bestScore, bestGlobalScore })
+    }
+    else {
+      return json({ board, squareData, squareGrowth, bestScore });
+    }
   };
 
   export const action = async ({ request }) => {
@@ -53,10 +59,10 @@ export const loader = async ({ params, request }) => {
       const newScore = await createScore({ score, gamemode, turnlog, userId, boardId, boardSize, userName})
     }
     if (submitType == 'newBoard') {
-      for (let i = 0; i < 3765; i++) {
+      for (let i = 0; i < 1210; i++) {
         boardData += Math.floor(Math.random() * 5)
       }
-      const newBoard = await createBoard({ size: '18', boardData, userId})
+      const newBoard = await createBoard({ size: '10', boardData, userId})
       return redirect(`/proggame/${newBoard.id}`)
     }
     return null
@@ -108,6 +114,7 @@ let growthArr
 let tempSquareArr
 let turnLogArr = []
 let fullTurnLogArr = []
+let fullOppTurnLogArr = []
 let turnLogJSON
 let hole = 0
 
@@ -133,6 +140,7 @@ function App() {
   const [complete, setComplete] = useState(false)
 
   const [turnLog, setTurnLog] = useState(turnLogArr)
+  const [oppTurnLog, setOppTurnLog] = useState(null)
 
   const [palColor, setPalColor] = useState(null)
   
@@ -205,6 +213,10 @@ function App() {
       localStorage.getItem('grid') == 'true' && setGrid(true)
       hasRun = true
       }
+      if (data.bestGlobalScore) {
+        fullOppTurnLogArr = JSON.parse(data.bestGlobalScore.turnlog)
+        setOppTurnLog(fullOppTurnLogArr.turnLog[0])
+      }
       // for (let i = 0; i < 5; i++) {
       //   document.documentElement.style.setProperty(colors[i], localStorage.getItem('palColor', i));
       // }
@@ -258,8 +270,8 @@ function App() {
         setRoundScore(currentRoundValue)
         totalScoreValue += currentRoundValue
         setTotalScore(totalScoreValue)
-        roundNumber <= 17 ? document.querySelector('.roundDialog').show() : document.querySelector('.endDialog').show()
-        if (roundNumber >  17) {
+        roundNumber <= 9 ? document.querySelector('.roundDialog').show() : document.querySelector('.endDialog').show()
+        if (roundNumber >  9) {
           setComplete(true)
           localStorage.setItem('playing', 'false')
           let turnLogObj = new Object()
@@ -358,27 +370,26 @@ function App() {
   function handleReset() {
     console.log(data.squareData)
     turnCount = 0
-    hole++
-    setHoleNumber(hole)
-    roundNumber++
-    if (roundNumber < 21) {
+    if (roundNumber > 9) {
+      hole = 0
+      roundNumber = 1
+      parValue = 10
+      dimensions = 5
+    }
+    else {
+      hole++
+      roundNumber++
       parValue = parValue + 2
       dimensions++
     }
-    else {
-        dimensions = 5
-        parValue = 10
-        roundNumber = 10
-        totalScoreValue = 0
-        setPar(parValue)
-        setTotalScore(totalScoreValue)
-        document.querySelector('.endDialog').close()
-    }
+    setHoleNumber(hole)
     tempSquareArr = JSON.parse(JSON.stringify(data.squareData[hole]))
     setBoardSize(dimensions)
     setPar(parValue)
     setColorState(tempSquareArr)
     setGrowth(data.squareGrowth[hole])
+    fullOppTurnLogArr = JSON.parse(data.bestGlobalScore.turnlog)
+    data.bestGlobalScore && setOppTurnLog(fullOppTurnLogArr.turnLog[hole])
     setCount(0)
     totalCaptured = 0
     squareCounterArr.forEach(counter => {
@@ -409,7 +420,9 @@ function App() {
     turnLogArr = []
     fullTurnLogArr.push(turnLogArr)
     setTurnLog(turnLogArr)
+    setComplete(false)
     document.querySelector('.roundDialog').close()
+    document.querySelector('.endDialog').close()
   }
 
   function handlePredict() {
@@ -483,7 +496,7 @@ function App() {
             <input type='hidden' name='score' value={totalScore}></input>
             <input type='hidden' name='boardId' value={boardId}></input>
             <input type='hidden' value={boardId} name='boardId'></input>
-            <input type='hidden' name='boardSize' value={'18'}></input>
+            <input type='hidden' name='boardSize' value={'10'}></input>
             <input type='hidden' name='turnLog' value={turnLogJSON}></input>
             <input type='hidden' value={user.username} name='username'></input>
             <input type='hidden' value={'submit'} name='submitType'></input>
@@ -495,17 +508,18 @@ function App() {
             <h3>You finished {totalScore > 0 ? `+${totalScore}` : totalScore} {totalScore <= 0 ? 'under' : 'over'} par!</h3>
             <input type='hidden' name='score' value={totalScore}></input>
             <input type='hidden' name='boardId' value={boardId}></input>
-            <input type='hidden' name='boardSize' value={'18'}></input>
+            <input type='hidden' name='boardSize' value={'10'}></input>
             <input type='hidden' value={user.username} name='username'></input>
             <input type='hidden' value={'newBoard'} name='submitType'></input>
             <button type='submit'>New Board</button>
         </fetcher.Form>
+        <button type='submit' onClick={handleReset}>Retry</button>
     </dialog>
     <div className='gameContainer'>
       <div className='settingsIcon' onClick={handleOpen}>{isOpen ? 'X' : 'O'}</div>
       <section className='left'>
         <div className='holeInfo'>
-          <h1>Hole {holeNumber + 1}</h1>
+          <h1>Hole {holeNumber + 1} / 10</h1>
           <h1>{count} / {par}</h1>
           <h2>Total: {totalScore > 0 ? `+${totalScore}` : totalScore} {totalScore <= 0 ? 'Under' : 'Over'}</h2>
         </div>
@@ -530,17 +544,17 @@ function App() {
             <button className={`predictButton ${radarActive == true ? 'active' : ''}`} onClick={handlePredict}>Radar</button>
           </div>
           <div className='colorRow'>
-            <div className={`color ${selectedColor === 'var(--red)' ? 'grayed' : ''}`} onClick={() => colorChange('var(--red)')} onMouseEnter={e => radarActive ? colorChange('var(--red)') : e.preventDefault()} style={{ background: 'var(--red)' }}></div>
-            <div className={`color ${selectedColor === 'var(--orange)' ? 'grayed' : ''}`} onClick={() => colorChange('var(--orange)')} onMouseEnter={e => radarActive ? colorChange('var(--orange)') : e.preventDefault()} style={{ background: 'var(--orange)' }}></div>
-            <div className={`color ${selectedColor === 'var(--yellow)' ? 'grayed' : ''}`} onClick={() => colorChange('var(--yellow)')} onMouseEnter={e => radarActive ? colorChange('var(--yellow)') : e.preventDefault()} style={{ background: 'var(--yellow)' }}></div>
-            <div className={`color ${selectedColor === 'var(--green)' ? 'grayed' : ''}`} onClick={() => colorChange('var(--green)')} onMouseEnter={e => radarActive ? colorChange('var(--green)') : e.preventDefault()} style={{ background: 'var(--green)' }}></div>
-            <div className={`color ${selectedColor === 'var(--blue)' ? 'grayed' : ''}`} onClick={() => colorChange('var(--blue)')} onMouseEnter={e => radarActive ? colorChange('var(--blue)') : e.preventDefault()} style={{ background: 'var(--blue)' }}></div>
-          </div>
+            <div className={`color ${selectedColor === 'var(--red)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--red)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--red)') : e.preventDefault()} style={{ background: 'var(--red)' }}></div>
+            <div className={`color ${selectedColor === 'var(--orange)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--orange)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--orange)') : e.preventDefault()} style={{ background: 'var(--orange)' }}></div>
+            <div className={`color ${selectedColor === 'var(--yellow)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--yellow)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--yellow)') : e.preventDefault()} style={{ background: 'var(--yellow)' }}></div>
+            <div className={`color ${selectedColor === 'var(--green)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--green)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--green)') : e.preventDefault()} style={{ background: 'var(--green)' }}></div>
+            <div className={`color ${selectedColor === 'var(--blue)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--blue)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--blue)') : e.preventDefault()} style={{ background: 'var(--blue)' }}></div>
+        </div>
         </section>
       </section>
     <section className='right'>
     <div className='scoreboard'>
-      <h2>High Score: {highScore != null && highScore}</h2>
+    <h2>{data.bestGlobalScore ? `Score to Beat: ${data.bestGlobalScore.score > 0 ? `+${data.bestGlobalScore.score}` : data.bestGlobalScore.score}` : `High Score: ${highScore > 0 ? `+${highScore}` : highScore}`}</h2>
       <h3>Squares Remaining</h3>
         <div className='squareRow'>
           <div className='fakeSquare' style={{background: 'var(--red)'}}>
@@ -569,19 +583,32 @@ function App() {
         <div className='turnLog'>
           <h3>Turn Log</h3>
           <div className='row'>
-                <h3>Turn</h3>
-                <h3>Captured</h3>
-              </div>
+              <h3>Turn</h3>
+              <h3>Captured</h3>
+          </div>
+          {data.bestGlobalScore && <div className='row'>
+              <h3></h3>
+              <h3>You</h3>
+              <h3>{data.bestGlobalScore.userName}</h3>
+          </div>}
           <div className='turnLogBox'>
             {turnLog && turnLog.map((row, index) => {
               return (
-                <div key={index} className='row'>
+                <div className='row'>
                 <h3>{index + 1}</h3>
                 <div className='turnInfo'>
                   <div className='fakeSquare' style={{background: turnLog[index].color}}>
                     <h4>{turnLog[index].captured}</h4>
                   </div>
                 </div>
+                {oppTurnLog != null && <div className='turnInfo'>
+                  <div className='fakeSquare' style={oppTurnLog[index] && {background: oppTurnLog[index].color}}>
+                    <h4>{oppTurnLog[index] && oppTurnLog[index].captured}</h4>
+                  </div>
+                  {/* <div className='fakeSquare' style={data.bestGlobalScore && {background: JSON.parse(data.bestGlobalScore.turnlog.turnLog[index]).color}}>
+                    <h4>{data.bestGlobalScore && JSON.parse(data.bestGlobalScore.turnlog.turnLog[index]).captured}</h4>
+                  </div> */}
+                </div>}
               </div>
               )
             })}
