@@ -388,8 +388,10 @@ function App() {
     setPar(parValue)
     setColorState(tempSquareArr)
     setGrowth(data.squareGrowth[hole])
-    fullOppTurnLogArr = JSON.parse(data.bestGlobalScore.turnlog)
-    data.bestGlobalScore && setOppTurnLog(fullOppTurnLogArr.turnLog[hole])
+    if (data.bestGlobalScore) {
+      fullOppTurnLogArr = JSON.parse(data.bestGlobalScore.turnlog)
+      setOppTurnLog(fullOppTurnLogArr.turnLog[hole])
+    }
     setCount(0)
     totalCaptured = 0
     squareCounterArr.forEach(counter => {
