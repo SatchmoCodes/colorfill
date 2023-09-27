@@ -50,8 +50,8 @@ export const action = async ({ request }) => {
     return redirect(`/game/${board.id}`)
   }
   else if (gamemode == 'progressive') {
-    const size = '18'
-    for (let i = 0; i < 3765; i++) {
+    const size = '10'
+    for (let i = 0; i < 1210; i++) {
       boardData += Math.floor(Math.random() * 5)
     }
     const board = await createBoard({ size, boardData, userId})

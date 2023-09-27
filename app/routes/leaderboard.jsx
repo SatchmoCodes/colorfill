@@ -3,7 +3,7 @@ import { Form, Link, NavLink, Outlet, useActionData, useFetcher, useLoaderData }
 import { useSubmit } from "@remix-run/react"
 
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { useUser } from "~/utils";
 import {prisma} from '~/db.server'
@@ -36,7 +36,7 @@ export const loader = async ({ request }) => {
                 size = 'Medium'
             }
             else if (gamemode == 'Progressive') {
-                size = '18'
+                size = '10'
             }
         }
         const username = url.searchParams.get('username')
@@ -51,7 +51,7 @@ export const loader = async ({ request }) => {
     const bestSmallScore = await getBestScore({ userId, size: 'Small', gamemode: 'Free Play'  })
     const bestMediumScore = await getBestScore({ userId, size: 'Medium', gamemode: 'Free Play' })
     const bestLargeScore = await getBestScore({ userId, size: 'Large', gamemode: 'Free Play'  })
-    const bestProgScore = await getBestScore({ userId, size: '18', gamemode: 'Progressive'  })
+    const bestProgScore = await getBestScore({ userId, size: '10', gamemode: 'Progressive'  })
     const totalScores = await getAllScores({ userId })
     return json({ totalScores, scoreListItems, bestSmallScore, bestMediumScore, bestLargeScore, bestProgScore })
 };
@@ -77,6 +77,7 @@ const leaderboard = () => {
     const submit = useSubmit()
 
     const [gamemode, setGamemode] = useState('Free Play')
+    const [queryData, setQueryData] = useState(data.scoreListItems)
 
     function handleRedirect(event) {
         if (event.target.dataset.gamemode == 'Free Play') {
@@ -93,6 +94,10 @@ const leaderboard = () => {
         submit(event.currentTarget)
       
     }
+
+    useEffect(() => {
+        setQueryData(data.scoreListItems)
+    }, [data])
     
   return (
     <>
@@ -144,8 +149,8 @@ const leaderboard = () => {
                             <option >Medium</option>
                             <option>Large</option>
                         </select>}
-                        {gamemode == 'Progressive' && <select className="size" name="size" defaultValue={'18'}>
-                            <option >18</option>
+                        {gamemode == 'Progressive' && <select className="size" name="size" defaultValue={'10'}>
+                            <option >10</option>
                         </select>}
                     </div>
                     <div>
@@ -154,7 +159,7 @@ const leaderboard = () => {
                 </div>
             </Form>
             <>
-            {data.scoreListItems.length == 0 ? <div className="row empty"><h2>No results found</h2></div> : data.scoreListItems.map((score, index) => (
+            {queryData.length == 0 ? <div className="row empty"><h2>No results found</h2></div> : queryData.map((score, index) => (
                 <div className="row" key={score.id}>
                     <h2>{index + 1}</h2>
                     <h2>{score.userName}</h2>
