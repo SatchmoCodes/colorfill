@@ -7,6 +7,8 @@ import { createUserSession, getUserId } from "~/session.server";
 import { safeRedirect, validateEmail } from "~/utils";
 import { getUserByUsername } from "../models/user.server";
 
+import menuStyle from '~/styles/menus.css'
+
 export const loader = async ({ request }) => {
   const userId = await getUserId(request);
   if (userId) return redirect("/");
@@ -89,7 +91,7 @@ export default function Join() {
   }, [actionData]);
 
   return (
-    <div className="flex min-h-full flex-col justify-center">
+    <div className="wrap">
       <div className="mx-auto w-full max-w-md px-8">
         <Form method="post" className="space-y-6">
           <div>
@@ -173,4 +175,8 @@ export default function Join() {
       </div>
     </div>
   );
+}
+
+export function links() {
+  return [{rel: 'stylesheet', href: menuStyle}]
 }

@@ -6,23 +6,48 @@ import {useState, useEffect} from 'react'
 
 import invariant from "tiny-invariant";
 import { requireUserId } from "~/session.server";
-import { getGameSessionById } from '../models/gamesession.server';
+import { getGameSessionById, updateSessionState } from '../models/gamesession.server';
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData } from '@remix-run/react';
 import { useEventSource } from "remix-utils";
+import { useFetcher } from '@remix-run/react';
+
+import { emitter } from "../services/emitter.server";
+
+import { useUser } from "~/utils";
+import { getUserNameById } from '../models/user.server';
+
+
 
 export const loader = async ({ params, request}) => {
   const userId = await requireUserId(request)
   invariant(params.sessionId, "sessionId not found");
 
   const gameSession = await getGameSessionById({ id: params.sessionId })
+  const user = await getUserNameById({ id: userId })
   if (!gameSession) {
     throw new Response("Not Found", { status: 404 });
+  }
+  if (gameSession.opponentName != user.username) {
+    return redirect('/pvplobby')
   }
   return json({ gameSession})
 }
 
+export const action = async({ request }) => {
+  const userId = await requireUserId(request)
+  const formData = await request.formData()
+  const gameState = formData.get('state')
+  const id = formData.get('id')
+
+  const updatedGameSession = await updateSessionState({ id, gameState})
+  emitter.emit('edit-gameSession', JSON.stringify(updatedGameSession))
+  return null
+}
+
 function pvplobby() {
+    const user = useUser()
+    const fetcher = useFetcher()
     let data = useLoaderData()
     console.log(data.gameSession)
     console.log(data.gameSession.boardState)
@@ -35,8 +60,15 @@ function pvplobby() {
         let parsedSession = JSON.parse(updatedGameSession)
         if (parsedSession != null) {
             setGameSession(parsedSession)
+            if (parsedSession.gameState == 'Playing') {
+              window.location.href = `/pvpgame/${parsedSession.id}`
+            }
         }
     }, [updatedGameSession])
+
+    function startGame() {
+      fetcher.submit({state: 'Playing', id: gameSession.id}, {method: 'POST'})
+    }
 
   return (
     <main>
@@ -50,7 +82,9 @@ function pvplobby() {
             <div className='rules'>
                 <h3></h3>
             </div>
-            <button disabled={gameSession.opponentName == gameSession.ownerName ? true : false}>Start Game</button>
+            {gameSession.ownerName == user.username && 
+            <button disabled={gameSession.opponentName == gameSession.ownerName ? true : false} onClick={startGame}>Start Game</button>
+            }
         </div>
     </main>
   )

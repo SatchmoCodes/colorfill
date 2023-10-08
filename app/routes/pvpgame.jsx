@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useEffect } from 'react'
 import { json, redirect } from "@remix-run/node";
 import gameStyle from '~/styles/game.css'
 import generateBoard from './pvpGenerator'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { library } from '@fortawesome/fontawesome-svg-core'
-import { Link, useNavigation } from "@remix-run/react";
+import { Link, useNavigation, useBeforeUnload } from "@remix-run/react";
 import { faCheckSquare, faCoffee, faGear } from '@fortawesome/free-solid-svg-icons'
 
 library.add(faCheckSquare, faCoffee, faGear)
@@ -17,7 +17,7 @@ import { createBoard} from '~/models/board.server'
 import { createScore} from '~/models/score.server'
 import invariant from "tiny-invariant";
 
-
+import { Beforeunload, useBeforeunload } from 'react-beforeunload';
 
 import { emitter } from "../services/emitter.server";
 import { useEventSource } from "remix-utils";
@@ -154,10 +154,17 @@ function App() {
 
   let boardUpdate = useEventSource('/pvpgame/subscribe', {event: 'updateBoard-gameSession'})
 
+  useBeforeUnload(
+    useCallback(() => {
+      alert('hi')
+    })
+  )
+
   useEffect(() => {
     if (boardUpdate) {
       let parsedBoardUpdate = JSON.parse(boardUpdate)
       if (parsedBoardUpdate != null) {
+        let totalSquares = data.squareData.length
         // setGrowth(JSON.parse(parsedBoardUpdate.squareGrowth))
         data.squareGrowth = JSON.parse(parsedBoardUpdate.squareGrowth)
         setColorState(JSON.parse(parsedBoardUpdate.boardState))
@@ -165,10 +172,25 @@ function App() {
         data.gameSession.turn = parsedBoardUpdate.turn
         data.squareData = tempSquareArr
         parsedBoardUpdate.turn == 'Owner' ? setOpponentScore(parsedBoardUpdate.opponentScore) : setOwnerScore(parsedBoardUpdate.ownerScore)
+        let squaresCaptured = parsedBoardUpdate.ownerScore + parsedBoardUpdate.opponentScore
+        let remainingSquares = totalSquares - squaresCaptured
+        setOwnerScore(parsedBoardUpdate.ownerScore)
+        setOpponentScore(parsedBoardUpdate.opponentScore)
+        if (parsedBoardUpdate.ownerScore + remainingSquares < parsedBoardUpdate.opponentScore) {
+          setComplete(true)
+        }
+        else if (parsedBoardUpdate.opponentScore + remainingSquares < parsedBoardUpdate.ownerScore) {
+          setComplete(true)
+        }
       }
     }
-   
   }, [boardUpdate])
+
+  useEffect(() => {
+    if (complete) {
+      document.querySelector('.victory').show()
+    }
+  }, [complete])
 
   useEffect(() => {
     if (data.squareGrowth) {
@@ -176,6 +198,7 @@ function App() {
     }
   }, [data.squareGrowth])
 
+console.log(data.gameSession.boardData)
   useEffect(() => {
     if (!hasRun) {
       console.log('do i run every time')
@@ -202,13 +225,20 @@ function App() {
     //     captureCheck(sq.color, index, "Opponent");
     //   }
     // });
+    if (data.gameSession.ownerName == user.username) {
+      setSelectedColor(data.squareData[0].color)
+    }
+    else if (data.gameSession.opponentName == user.username) {
+      console.log(data.squareData[data.squareData.length - 1].color)
+      setSelectedColor(data.squareData[data.squareData.length - 1].color)
+    }
     data.squareData = JSON.parse(JSON.stringify(tempSquareArr))
     setColorState(tempSquareArr)
     localStorage.getItem('grid') == 'true' && setGrid(true)
     hasRun = true
     user.username == data.gameSession.opponentName && setSelectedColor(data.squareData[data.squareData.length - 1].color)
     }
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < paletteColors.length; i++) {
       if (localStorage.getItem(paletteColors[i])) {
         document.documentElement.style.setProperty(paletteColors[i], localStorage.getItem(paletteColors[i]))
       } 
@@ -262,22 +292,19 @@ function App() {
       let newArrayCauseReactIsLame = [...turnLogArr]
       setTurnLog(newArrayCauseReactIsLame)
     }
-    //saving board status to local storage if user quits early
 
-    if (totalCaptured >= (boardSize * boardSize) - 1) {
-      setComplete(true)
-      let turnLogObj = new Object()
-      turnLogObj.turnLog = turnLogArr
-      turnLogJSON = JSON.stringify(turnLogObj)
-      localStorage.setItem('playing', 'false')
-      if (turnCount < highScore || highScore == null) {
-        setHighScore(turnCount)
-      }
-    }
+    // if (totalCaptured >= (boardSize * boardSize) - 1) {
+    //   setComplete(true)
+    //   let turnLogObj = new Object()
+    //   turnLogObj.turnLog = turnLogArr
+    //   turnLogJSON = JSON.stringify(turnLogObj)
+    //   localStorage.setItem('playing', 'false')
+    //   if (turnCount < highScore || highScore == null) {
+    //     setHighScore(turnCount)
+    //   }
+    // }
     let turn
     data.gameSession.turn == 'Owner' ? turn = 'Opponent' : turn = 'Owner'
-    console.log('at this point')
-    console.log(tempSquareArr)
     boardStateJSON = JSON.stringify(tempSquareArr)
     let squareGrowthJSON = JSON.stringify(data.squareGrowth)
     fetcher.submit({boardState: boardStateJSON, submitType: 'boardUpdate', turn: turn, sessionId: data.gameSession.id, squareGrowth: squareGrowthJSON, captured: numberCaptured}, {method: 'post'})
@@ -288,12 +315,6 @@ function App() {
     document.querySelectorAll('.row') != null && document.querySelectorAll('.row')[x.length - 1].scrollIntoView({ behavior: "smooth", block: "end", inline: "nearest" });
   }, [turnLog])
 
-  useEffect(() => {
-    if (complete) {
-      fetcher.submit(document.querySelector('.scoreData'))
-      document.querySelector('.endDialog').show()
-    }
-  }, [complete])
 
   function updateSquareCount(color) {
     squareCounterArr.forEach(sq => {
@@ -441,7 +462,7 @@ function App() {
     // for (let i = 0; i < 5; i++) {
     //   document.documentElement.style.setProperty(colors[i], `${event.target.parentElement.querySelectorAll('.palColor')[i].style.background}`);
     // }
-    for (let i = 0; i < colors.length - 1; i++) {
+    for (let i = 0; i < colors.length; i++) {
       localStorage.setItem(colors[i], event.target.parentElement.querySelectorAll('.palColor')[i].style.background)
       document.documentElement.style.setProperty(colors[i], `${event.target.parentElement.querySelectorAll('.palColor')[i].style.background}`)
     }
@@ -456,33 +477,27 @@ function App() {
     x != null && document.querySelectorAll('.row')[x.length - 1].scrollIntoView({ behavior: "smooth", block: "end", inline: "nearest" });
   }, [isOpen])
 
+  function handleRedirect() {
+    window.location.href = '/pvpmenu'
+  }
+
   return (
     <div className='gameContainer'>
+      <Beforeunload onBeforeunload={(event) => event.preventDefault()} />
       <div className='settingsIcon' onClick={handleOpen}>{isOpen ? 'X' : 'O'}</div>
-      <dialog className='scoreDialog'>
-        <fetcher.Form className='scoreData' method='post'>
-            <input type='hidden' value={turnCount} name='score'></input>
-            <input type='hidden' value={boardSize} name='boardSize'></input>
-            <input type='hidden' value={newBoardSize} name='newBoardSize'></input>
-            <input type='hidden' value={turnLogJSON} name='turnLog'></input>
-            <input type='hidden' value={user.username} name='username'></input>
-            <input type='hidden' value={'submit'} name='submitType'></input>
-          </fetcher.Form>
-      </dialog>
-      <dialog className='endDialog'>
-        <fetcher.Form className='formData' reloadDocument method='post' action='/game'>
-          {fetcher.state === 'submitting' ? 
-          <div>
-            <h2>Submitting data</h2>
-          </div> : 
-          <div>
-            <h2>You completed the board in {count} turns!</h2>
-            <input type='hidden' value={newBoardSize} name='newBoardSize'></input>
-            <input type='hidden' value={'newBoard'} name='submitType'></input>
-            <button type='submit'>New Board</button>
-          </div>}
-        </fetcher.Form>
-        {fetcher.state !== 'submitting' && <button type='submit' onClick={handleRetry}>Retry</button>}
+      <dialog className='victory'>
+        {ownerScore > opponentScore ? 
+        <div>
+          <h2>{data.gameSession.ownerName} wins the game!</h2>
+          <h3>Score: {user.username == data.gameSession.ownerName ? `${ownerScore} - ${opponentScore}` : `${opponentScore} - ${ownerScore}`}</h3>
+          <button onClick={handleRedirect}>Return to lobby</button>
+        </div> :
+        <div>
+          <h2>{data.gameSession.opponentName} wins the game!</h2>
+          <h3>Score: {user.username == data.gameSession.ownerName ? `${ownerScore} - ${opponentScore}` : `${opponentScore} - ${ownerScore}`}</h3>
+          <button onClick={handleRedirect}>Return to lobby</button>
+        </div>
+        }
       </dialog>
     <section className={`left ${isOpen ? 'hide' : ''}`}>
       <section className='buttonSection'>
@@ -633,7 +648,7 @@ function App() {
             <div className='palColor' style={{background: 'hsl(130, 100%, 15%)'}}></div>
             <div className='palColor' style={{background: 'hsl(242, 69%, 49%)'}}></div>
             <div className='palColor hide' style={{background: 'white'}}></div>
-            <div className='palColor hide' style={{background: 'black'}}></div>
+            <div className='palColor hide' style={{background: 'rgb(31, 31, 31)'}}></div>
           </div>
           <div className='colorHolder' onClick={handlePaletteSwap}>
             <div className='palColor' style={{background: 'hsl(33, 90.8%, 12.7%)'}}></div>
@@ -641,6 +656,8 @@ function App() {
             <div className='palColor' style={{background: 'hsl(25, 95.4%, 42.7%)'}}></div>
             <div className='palColor' style={{background: 'hsl(221, 69.2%, 43.3%)'}}></div>
             <div className='palColor' style={{background: 'hsl(213, 68.6%, 90%)'}}></div>
+            <div className='palColor hide' style={{background: 'rgb(133, 7, 7)'}}></div>
+            <div className='palColor hide' style={{background: 'rgb(8, 68, 17)'}}></div>
           </div>
           <div className='colorHolder' onClick={handlePaletteSwap}>
             <div className='palColor' style={{background: 'hsl(358,83%,35%)'}}></div>
@@ -648,6 +665,8 @@ function App() {
             <div className='palColor' style={{background: 'hsl(211,88%,32%)'}}></div>
             <div className='palColor' style={{background: 'hsl(0,0%,39%)'}}></div>
             <div className='palColor' style={{background: 'hsl(0,0%,14%)'}}></div>
+            <div className='palColor hide' style={{background: 'rgb(143, 4, 156)'}}></div>
+            <div className='palColor hide' style={{background: 'rgb(255, 235, 15)'}}></div>
           </div>
           <div className='colorHolder' onClick={handlePaletteSwap}>
             <div className='palColor' style={{background: 'hsl(164,95%,43%)'}}></div>
@@ -655,6 +674,8 @@ function App() {
             <div className='palColor' style={{background: 'hsl(43,100%,70%)'}}></div>
             <div className='palColor' style={{background: 'hsl(197,19%,36%)'}}></div>
             <div className='palColor' style={{background: 'hsl(200,43%,7%)'}}></div>
+            <div className='palColor hide' style={{background: 'rgb(5, 73, 157)'}}></div>
+            <div className='palColor hide' style={{background: 'rgb(197, 42, 11)'}}></div>
           </div>
           <div className='colorHolder' onClick={handlePaletteSwap}>
             <div className='palColor' style={{background: 'hsl(7,55%,30%)'}}></div>
@@ -662,6 +683,8 @@ function App() {
             <div className='palColor' style={{background: 'hsl(24,38%,87%)'}}></div>
             <div className='palColor' style={{background: 'hsl(183,66%,28%)'}}></div>
             <div className='palColor' style={{background: 'hsl(180,20%,20%)'}}></div>
+            <div className='palColor hide' style={{background: 'rgb(228, 174, 13)'}}></div>
+            <div className='palColor hide' style={{background: 'rgb(110, 13, 228)'}}></div>
           </div>
           <div className='colorHolder' onClick={handlePaletteSwap}>
             <div className='palColor' style={{background: 'hsl(306, 81%, 21%)'}}></div>
@@ -669,6 +692,8 @@ function App() {
             <div className='palColor' style={{background: 'hsl(211,88%,32%)'}}></div>
             <div className='palColor' style={{background: 'hsl(0,0%,39%)'}}></div>
             <div className='palColor' style={{background: 'hsl(0,0%,14%)'}}></div>
+            <div className='palColor hide' style={{background: 'rgb(23, 190, 8)'}}></div>
+            <div className='palColor hide' style={{background: 'rgb(190, 20, 8)'}}></div>
           </div>
           <div className='colorHolder' onClick={handlePaletteSwap}>
             <div className='palColor' style={{background: 'hsl(83, 45%, 18%)'}}></div>
@@ -676,13 +701,8 @@ function App() {
             <div className='palColor' style={{background: 'hsl(55, 47%, 78%)'}}></div>
             <div className='palColor' style={{background: 'hsl(48,99%,59%)'}}></div>
             <div className='palColor' style={{background: 'hsl(27, 55%, 33%)'}}></div>
-          </div>
-          <div className='colorHolder' onClick={handlePaletteSwap}>
-            <div className='palColor' style={{background: 'hsl(0, 0%, 93%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(207, 61%, 30%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(15, 97%, 74%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(167, 98%, 74%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(167, 51%, 46%'}}></div>
+            <div className='palColor hide' style={{background: 'rgb(31, 194, 215)'}}></div>
+            <div className='palColor hide' style={{background: 'rgb(204, 72, 16)'}}></div>
           </div>
         </div>
         <div className='link'>

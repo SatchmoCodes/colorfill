@@ -56,6 +56,7 @@ export function getGameSessionById({ id }) {
     })
 }
 
+
 export function findExistingSession({ ownerName }) {
     return prisma.gameSession.findFirst({
         where: { ownerName }
@@ -67,6 +68,15 @@ export function updateUserInSession({ id, opponentName}) {
         where: { id },
         data: {
             opponentName: opponentName
+        }
+    })
+}
+
+export function updateSessionState({ id, gameState }) {
+    return prisma.gameSession.update({
+        where: { id },
+        data: {
+            gameState: gameState
         }
     })
 }

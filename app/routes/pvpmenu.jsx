@@ -94,7 +94,9 @@ export default function Index() {
                 <h3>Players:</h3>
                 <h3>{game.ownerName} (Owner)</h3>
                 <h3>{game.ownerName == game.opponentName ? 'Waiting on player...' : game.opponentName}</h3>
+                {game.ownerName == game.opponentName && 
                 <button data-id={game.id} onClick={handleJoin}>Join</button>
+                }
               </div>
             )
           })}

@@ -71,10 +71,10 @@ export const action = async ({ request }) => {
     while (boardData[dimensions] == boardData[0]) {
       boardData.splice(dimensions, 1, Math.floor(Math.random() * 5))
     }
-    while (boardData[boardData.length - 1] == boardData[0]) {
-      boardData.splice(boardHalf.length - 1, 1, Math.floor(Math.random() * 5))
+    while (boardData[boardData.length - 2] == boardData[boardData.length - 1]) {
+      boardData.splice(boardData.length - 2, 1, Math.floor(Math.random() * 5))
     }
-    while (boardData[(boardData.length - 1) - dimensions] == boardData[0]) {
+    while (boardData[(boardData.length - 1) - dimensions] == boardData[boardData.length - 1]) {
       boardData.splice((boardData.length - 1) - dimensions, 1, Math.floor(Math.random() * 5))
     }
   }
