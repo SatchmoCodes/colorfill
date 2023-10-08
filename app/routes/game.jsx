@@ -692,13 +692,6 @@ function App() {
             <div className='palColor' style={{background: 'hsl(48,99%,59%)'}}></div>
             <div className='palColor' style={{background: 'hsl(27, 55%, 33%)'}}></div>
           </div>
-          <div className='colorHolder' onClick={handlePaletteSwap}>
-            <div className='palColor' style={{background: 'hsl(0, 0%, 93%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(207, 61%, 30%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(15, 97%, 74%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(167, 98%, 74%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(167, 51%, 46%'}}></div>
-          </div>
         </div>
         <div className='link'>
           <Link to='/'>Return to Main Menu</Link>
