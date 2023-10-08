@@ -43,6 +43,10 @@
     border: 1px solid rgb(124, 124, 124);
 }
 
+.table .empty h2 {
+    max-width: 100% !important;
+}
+
 .table .score {
     max-width: 5%;
 }

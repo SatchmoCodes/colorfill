@@ -68,8 +68,7 @@ export const loader = async ({ params, request }) => {
     return null
   }
 
-const colors = ['var(--red)', 'var(--orange)', 'var(--yellow)', 'var(--green)', 'var(--blue)']
-const paletteColors = ['--red', '--orange', '--yellow', '--green', '--blue']
+const paletteColors = ['--red', '--orange', '--yellow', '--green', '--blue', '--owner', '--opponent']
 let totalCaptured = 0
 let turnCount = 0
 let dimensions = 5
@@ -227,6 +226,13 @@ function App() {
         } 
       }
   }, []);
+
+  useEffect(() => {
+    if (data.bestGlobalScore) {
+      fullOppTurnLogArr = JSON.parse(data.bestGlobalScore.turnlog);
+      setOppTurnLog(fullOppTurnLogArr.turnLog[0]);
+    }
+  }, [data.bestGlobalScore])
 
   function colorChange(color) {
     tempSquareArr = JSON.parse(JSON.stringify(data.squareData[hole]))
@@ -446,7 +452,7 @@ function App() {
   }
 
   function handlePaletteSwap(event) {
-    const colors = ['--red', '--orange', '--yellow', '--green', '--blue']
+    const colors = ['--red', '--orange', '--yellow', '--green', '--blue', '--owner', '--opponent']
     // for (let i = 0; i < 5; i++) {
     //   palColorArr.push(event.target.parentElement.querySelectorAll('.palColor')[i].style.background)
     //   document.documentElement.style.setProperty(colors[i], `${event.target.parentElement.querySelectorAll('.palColor')[i].style.background}`);
@@ -456,7 +462,7 @@ function App() {
     // localStorage.setItem('--yellow', event.target.parentElement.querySelectorAll('.palColor')[2].style.background)
     // localStorage.setItem('--green', event.target.parentElement.querySelectorAll('.palColor')[3].style.background)
     // localStorage.setItem('--blue', event.target.parentElement.querySelectorAll('.palColor')[4].style.background)
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < colors.length; i++) {
       localStorage.setItem(colors[i], event.target.parentElement.querySelectorAll('.palColor')[i].style.background)
       document.documentElement.style.setProperty(colors[i], `${event.target.parentElement.querySelectorAll('.palColor')[i].style.background}`)
     }

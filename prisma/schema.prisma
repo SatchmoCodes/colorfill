@@ -8,17 +8,19 @@ generator client {
 }
 
 model User {
-  id    String @id @default(cuid())
+  id String @id @default(cuid())
 
   username String @unique
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  password Password?
-  notes    Note[]
-  Scores   Scores[]
-  Boards   Boards[]
+  password     Password?
+  notes        Note[]
+  Scores       Scores[]
+  Boards       Boards[]
+  ownerName    GameSession[] @relation("ownerName")
+  opponentName GameSession[] @relation("opponentName")
 
   @@unique([id, username])
 }
@@ -47,10 +49,10 @@ model Scores {
   score       Int
   completedAt DateTime @default(now())
   gamemode    String
-  turnlog String
+  turnlog     String
 
-  user   User   @relation(fields: [userId, userName], references: [id, username])
-  userId String
+  user     User   @relation(fields: [userId, userName], references: [id, username])
+  userId   String
   userName String
 
   boards    Boards @relation(fields: [boardId, boardSize], references: [id, size])
@@ -68,7 +70,36 @@ model Boards {
   user   User   @relation(fields: [userId], references: [id])
   userId String
 
-  Scores Scores[]
+  Scores      Scores[]
+  GameSession GameSession[]
 
   @@id([id, size])
+  @@unique([id, size, boardData])
+}
+
+model GameSession {
+  id String @unique @default(cuid())
+
+  ownerName    String
+  opponentName String
+
+  boards    Boards @relation(fields: [boardId, boardSize, boardData], references: [id, size, boardData])
+  boardId   String
+  boardSize String
+  boardData String
+
+  gameState     String
+  boardState    String
+  boardType     String
+  gameType      String
+  squareGrowth  String
+  turn          String
+  ownerScore    Int
+  opponentScore Int
+  turnLog       String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now())
+
+  owner    User @relation("ownerName", fields: [ownerName], references: [username])
+  opponent User @relation("opponentName", fields: [opponentName], references: [username])
 }

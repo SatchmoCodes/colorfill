@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useEffect } from 'react'
 import { json, redirect } from "@remix-run/node";
 import gameStyle from '~/styles/game.css'
-import generateBoard from './SquareGenerator'
+import generateBoard from './pvpGenerator'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { Link, useNavigation } from "@remix-run/react";
@@ -15,88 +15,67 @@ import { requireUserId } from "~/session.server";
 import { Form, useActionData, useLoaderData} from '@remix-run/react'
 import { createBoard} from '~/models/board.server'
 import { createScore} from '~/models/score.server'
-import { getBoard } from '~/models/board.server'
 import invariant from "tiny-invariant";
 
+
+
+import { emitter } from "../services/emitter.server";
+import { useEventSource } from "remix-utils";
+
 import { useFetcher } from "@remix-run/react";
-import { getBestScore, getBestBoardScore } from '../models/score.server';
+import { getGameSessionById, updateBoardStateOwner, updateBoardStateOpponent } from '../models/gamesession.server';
+
+export const HeadersFunction = () => {
+  const headers = new Headers()
+  headers.set("Server", "Remix")
+  return headers
+}
 
 
 export const loader = async ({ params, request }) => {
   const userId = await requireUserId(request);
-  invariant(params.boardId, "boardId not found");
+  invariant(params.sessionId, "sessionId not found");
 
-  const board = await getBoard({ id: params.boardId });
-  if (!board) {
+  const gameSession = await getGameSessionById({ id: params.sessionId });
+  if (!gameSession) {
     throw new Response("Not Found", { status: 404 });
   }
-  let squareData = generateBoard(board.boardData).flat()
-  let squareGrowth = new Array(board.boardData.length).fill(false)
-  let bestScore = await getBestScore({ userId, gamemode: 'Free Play', size: board.size})
-  const bestGlobalScore = await getBestBoardScore({ boardId: board.id})
-  if (bestGlobalScore) {
-    return json({ board, squareData, squareGrowth, bestScore, bestGlobalScore })
-  }
-  else {
-    return json({ board, squareData, squareGrowth, bestScore });
-  }
+  let squareData = JSON.parse(gameSession.boardState)
+  squareData = squareData.flat()
+  let squareGrowth = JSON.parse(gameSession.squareGrowth)
+  
+  return json({ gameSession, squareData, squareGrowth });
+  
 };
 
 
 export const action = async ({ request }) => {
   const userId = await requireUserId(request)
+
   const formData = await request.formData()
   const submitType = formData.get('submitType')
-  let newBoardSize = formData.get('newBoardSize')
-  const userName = formData.get('username')
-  const gamemode = 'Free Play'
-  let boardData = ''
+  const sessionId = formData.get('sessionId')
 
-  for (let i = 0; i < newBoardSize * newBoardSize; i++) {
-    boardData+= Math.floor(Math.random() * 5)
-  }
-
-  switch(newBoardSize) {
-    case '10':
-      newBoardSize = 'Small'
-      break;
-    case '15':
-      newBoardSize = 'Medium'
-      break;
-    case '20':
-      newBoardSize = 'Large'
-      break;
-  }
-
-  if (submitType == 'submit') {
-    let score = formData.get('score')
-    const boardId = formData.get('boardId')
-    const turnLog = formData.get('turnLog')
-    let boardSize = formData.get('boardSize')
-    score = parseInt(score)
-    switch(boardSize) {
-      case '10':
-        boardSize = 'Small'
-        break;
-      case '15':
-        boardSize = 'Medium'
-        break;
-      case '20':
-        boardSize = 'Large'
-        break;
+  if (submitType == 'boardUpdate') {
+    const boardState = formData.get('boardState')
+    const squareGrowth = formData.get('squareGrowth')
+    const turn = formData.get('turn')
+    const captured = parseInt(formData.get('captured'))
+    console.log(turn)
+    console.log(captured)
+    if (turn == 'Owner') {
+      const updatedGameSession = await updateBoardStateOpponent({ id: sessionId, boardState, squareGrowth, turn, opponentScore: captured})
+      emitter.emit('updateBoard-gameSession', JSON.stringify(updatedGameSession))
     }
-    const newScore = await createScore({ score, gamemode, turnlog: turnLog, userId, boardId, boardSize, userName })
-  }
-
-  if (submitType == 'newBoard') {
-    const newBoard = await createBoard({ size: newBoardSize, boardData, userId})
-    return redirect(`/game/${newBoard.id}`)
+    else {
+      const updatedGameSession = await updateBoardStateOwner({ id: sessionId, boardState, squareGrowth, turn, ownerScore: captured})
+      emitter.emit('updateBoard-gameSession', JSON.stringify(updatedGameSession))
+    }
   }
   return null
 }
 
-const colors = ['var(--red)', 'var(--orange)', 'var(--yellow)', 'var(--green)', 'var(--blue)']
-const paletteColors = ['--red', '--orange', '--yellow', '--green', '--blue']
+const paletteColors = ['--red', '--orange', '--yellow', '--green', '--blue', '--owner', '--opponent']
 let totalCaptured = 0
 let turnCount = 0
 // let boardSize = 20
@@ -139,8 +118,11 @@ let squareCounterArr = [
 let tempSquareArr
 let turnLogArr = []
 let turnLogJSON
+let boardStateJSON
 let numberCaptured = 0
 let hasRun = false
+let currentPlayer
+let roundCaptured = 0
 
 function App() {
   const user = useUser()
@@ -149,7 +131,6 @@ function App() {
   const navigation = useNavigation()
 
   const isSubmitting = navigation.formAction === '/game'
-
 
   const [count, setCount] = useState(turnCount) //track # of turns
   const [colorState, setColorState] = useState(data.squareData) //tracks color of entire board
@@ -160,60 +141,72 @@ function App() {
   const [radarActive, setRadarActive] = useState(false)
   const [growth, setGrowth] = useState(data.squareGrowth) //class animation on capture
   const [customBoardSize, setCustomBoardSize] = useState('')
-  const [boardSize, setBoardSize] = useState(Math.sqrt(data.board.boardData.length))
-  const [newBoardSize, setNewBoardSize] = useState(Math.sqrt(data.board.boardData.length))
+  const [boardSize, setBoardSize] = useState(Math.sqrt(data.squareData.length))
+  const [newBoardSize, setNewBoardSize] = useState(Math.sqrt(data.squareData.length))
   const [grid, setGrid] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const [complete, setComplete] = useState(false)
 
   const [turnLog, setTurnLog] = useState(turnLogArr)
-  const [oppTurnLog, setOppTurnLog] = useState(null)
+  const [ownerScore, setOwnerScore] = useState(data.gameSession.ownerScore)
+  const [opponentScore, setOpponentScore] = useState(data.gameSession.opponentScore)
 
-  const [boardId, setBoardId] = useState(data.board.id)
+
+  let boardUpdate = useEventSource('/pvpgame/subscribe', {event: 'updateBoard-gameSession'})
+
+  useEffect(() => {
+    if (boardUpdate) {
+      let parsedBoardUpdate = JSON.parse(boardUpdate)
+      if (parsedBoardUpdate != null) {
+        // setGrowth(JSON.parse(parsedBoardUpdate.squareGrowth))
+        data.squareGrowth = JSON.parse(parsedBoardUpdate.squareGrowth)
+        setColorState(JSON.parse(parsedBoardUpdate.boardState))
+        tempSquareArr = JSON.parse(parsedBoardUpdate.boardState)
+        data.gameSession.turn = parsedBoardUpdate.turn
+        data.squareData = tempSquareArr
+        parsedBoardUpdate.turn == 'Owner' ? setOpponentScore(parsedBoardUpdate.opponentScore) : setOwnerScore(parsedBoardUpdate.ownerScore)
+      }
+    }
+   
+  }, [boardUpdate])
+
+  useEffect(() => {
+    if (data.squareGrowth) {
+      setGrowth(data.squareGrowth)
+    }
+  }, [data.squareGrowth])
 
   useEffect(() => {
     if (!hasRun) {
-      if (localStorage.getItem('recentId') == data.board.id && localStorage.getItem('playing') == 'true') {
-          tempSquareArr = JSON.parse(localStorage.getItem('boardData'))
-          setGrowth(JSON.parse(localStorage.getItem('growthArr')))
-          turnCount = localStorage.getItem('turnCount')
-          totalCaptured = localStorage.getItem('totalCaptured')
-          squareCounterArr = JSON.parse(localStorage.getItem('squareCounter'))
-          turnLogArr = JSON.parse(localStorage.getItem('turnLog'))
-          setSelectedColor(localStorage.getItem('selectedColor'))
-          setSquareCounter(squareCounterArr)
-          setCount(turnCount)
-          setTurnLog(turnLogArr)
-      }
-      else {
-        
-        tempSquareArr = JSON.parse(JSON.stringify(data.squareData))
-        tempSquareArr.forEach(sq => {
-          // boardCode += (colors.indexOf(sq.color))
-          squareCounterArr.forEach(counter => {
-              if (sq.color == counter.color && !sq.index == 0) {
-                counter.count++
-              }
-            })
-        })
-      }
-    data.squareGrowth[0] = 'captured'
+      console.log('do i run every time')
+      tempSquareArr = JSON.parse(JSON.stringify(data.squareData))
+      tempSquareArr.forEach(sq => {
+        // boardCode += (colors.indexOf(sq.color))
+        squareCounterArr.forEach(counter => {
+            if (sq.color == counter.color && !sq.index == 0) {
+              counter.count++
+            }
+          })
+      })
+    // data.squareGrowth[0] = 'captured'
+    // data.squareGrowth[data.squareGrowth.length - 1] = 'captured'
     setGrowth(data.squareGrowth)
     setSquareCounter(squareCounterArr)
-    console.log(tempSquareArr)
-    tempSquareArr.forEach((sq, index) => {
-      if (sq.captured) {
-        captureCheck(sq.color, index);
-      }
-    });
+    // tempSquareArr.forEach((sq, index) => {
+    //   if (sq.captured && sq.owner == "Owner") {
+    //     captureCheck(sq.color, index, "Owner");
+    //   }
+    // });
+    // tempSquareArr.forEach((sq, index) => {
+    //   if (sq.captured && sq.owner == "Opponent") {
+    //     captureCheck(sq.color, index, "Opponent");
+    //   }
+    // });
     data.squareData = JSON.parse(JSON.stringify(tempSquareArr))
     setColorState(tempSquareArr)
     localStorage.getItem('grid') == 'true' && setGrid(true)
     hasRun = true
-    }
-    if (data.bestGlobalScore) {
-      console.log(data.bestGlobalScore.turnlog)
-      setOppTurnLog(JSON.parse(data.bestGlobalScore.turnlog))
+    user.username == data.gameSession.opponentName && setSelectedColor(data.squareData[data.squareData.length - 1].color)
     }
     for (let i = 0; i < 5; i++) {
       if (localStorage.getItem(paletteColors[i])) {
@@ -223,39 +216,42 @@ function App() {
     
   }, []);
 
-  useEffect(() => {
-    if (data.bestGlobalScore) {
-      console.log(JSON.parse(data.bestGlobalScore.turnlog))
-      setOppTurnLog(JSON.parse(data.bestGlobalScore.turnlog))
-    }
-  }, [data.bestGlobalScore])
-
 
   function colorChange(color) {
-    tempSquareArr = JSON.parse(JSON.stringify(data.squareData))
+    roundCaptured = 0
+    if (data.gameSession.turn == 'Owner' && data.gameSession.ownerName != user.username) {
+      alert('it is not your turn')
+      return
+    }
+    else if (data.gameSession.turn == 'Opponent' && data.gameSession.opponentName != user.username) {
+      alert('it is not your turn')
+      return
+    }
+    currentPlayer = data.gameSession.turn
     let numberCaptured = totalCaptured
     console.log(localStorage.getItem('playing'))
-    setColorState(tempSquareArr)
+    // setColorState(tempSquareArr)
     data.squareGrowth.map((e, index) => {
       if (e == 'predicted') {
         data.squareGrowth[index] = false
       }
     })
-    setGrowth(data.squareGrowth)
+    // setGrowth(data.squareGrowth)
     !radarActive && turnCount++
     !radarActive && setSelectedColor(color)
     console.log(turnCount)
       tempSquareArr.forEach((sq, index) => {
-        if (sq.captured) {
-          captureCheck(color, index)
+        if (sq.captured && sq.owner == currentPlayer) {
+          console.log('true')
+          captureCheck(color, index, currentPlayer)
         }
       })
     setColorState(tempSquareArr)
     setCount(turnCount)
-    if (radarActive) {
-      tempSquareArr = JSON.parse(JSON.stringify(data.squareData))
-    } 
-    data.squareData = JSON.parse(JSON.stringify(tempSquareArr))
+    // if (radarActive) {
+    //   tempSquareArr = JSON.parse(JSON.stringify(data.squareData))
+    // } 
+    // data.squareData = JSON.parse(JSON.stringify(tempSquareArr))
     if (!radarActive) {
       numberCaptured = totalCaptured - numberCaptured
       let captureObj = {
@@ -267,19 +263,6 @@ function App() {
       setTurnLog(newArrayCauseReactIsLame)
     }
     //saving board status to local storage if user quits early
-    if (turnCount >= 1) {
-      console.log('new board saved')
-      localStorage.setItem('recentId', data.board.id)
-      localStorage.setItem('boardData', JSON.stringify(data.squareData))
-      localStorage.setItem('turnCount', turnCount)
-      localStorage.setItem('squareCounter', JSON.stringify(squareCounterArr))
-      localStorage.setItem('growthArr', JSON.stringify(data.squareGrowth))
-      localStorage.setItem('totalCaptured', totalCaptured)
-      localStorage.setItem('playing', 'true')
-      localStorage.setItem('gamemode', 'freeplay')
-      !radarActive && localStorage.setItem('selectedColor', color)
-      localStorage.setItem('turnLog', JSON.stringify(turnLogArr))
-    }
 
     if (totalCaptured >= (boardSize * boardSize) - 1) {
       setComplete(true)
@@ -291,6 +274,13 @@ function App() {
         setHighScore(turnCount)
       }
     }
+    let turn
+    data.gameSession.turn == 'Owner' ? turn = 'Opponent' : turn = 'Owner'
+    console.log('at this point')
+    console.log(tempSquareArr)
+    boardStateJSON = JSON.stringify(tempSquareArr)
+    let squareGrowthJSON = JSON.stringify(data.squareGrowth)
+    fetcher.submit({boardState: boardStateJSON, submitType: 'boardUpdate', turn: turn, sessionId: data.gameSession.id, squareGrowth: squareGrowthJSON, captured: numberCaptured}, {method: 'post'})
   }
 
   useEffect(() => {
@@ -314,7 +304,8 @@ function App() {
     setSquareCounter(squareCounterArr)
   }
 
-  function captureCheck(color, index) {
+  function captureCheck(color, index, currentPlayer) {
+     console.log(currentPlayer)
     !radarActive ? tempSquareArr[index].fakeColor = color :   tempSquareArr[index].fakeColor = data.squareData[index].fakeColor
     tempSquareArr[index].color = color
     // right
@@ -322,11 +313,13 @@ function App() {
       if (tempSquareArr[index].color == tempSquareArr[index + 1].color && tempSquareArr[index].rowIndex == tempSquareArr[index + 1].rowIndex) {
         tempSquareArr[index + 1].color = color
         tempSquareArr[index + 1].captured = true
+        tempSquareArr[index + 1].owner = currentPlayer
         !radarActive && updateSquareCount(color)
         !radarActive && totalCaptured++
-        !radarActive ? data.squareGrowth[index + 1] = 'captured' : data.squareGrowth[index + 1] = 'predicted'
-        setGrowth(data.squareGrowth)
-        tempSquareArr[index + 1].colIndex <= boardSize && captureCheck(color, index + 1)
+        !radarActive ? data.squareGrowth[index + 1] = `captured ${currentPlayer}` : data.squareGrowth[index + 1] = 'predicted'
+        // setGrowth(data.squareGrowth)
+        roundCaptured++
+        tempSquareArr[index + 1].colIndex <= boardSize && captureCheck(color, index + 1, currentPlayer)
       }
     }
     //left
@@ -334,11 +327,13 @@ function App() {
       if (tempSquareArr[index].color == tempSquareArr[index - 1].color && tempSquareArr[index].rowIndex == tempSquareArr[index - 1].rowIndex) {
         tempSquareArr[index - 1].color = color
         tempSquareArr[index - 1].captured = true
+        tempSquareArr[index - 1].owner = currentPlayer
         !radarActive && updateSquareCount(color)
         !radarActive && totalCaptured++
-        !radarActive ? data.squareGrowth[index - 1] = 'captured' : data.squareGrowth[index - 1] = 'predicted'
-        setGrowth(data.squareGrowth)
-        tempSquareArr[index - 1].colIndex <= boardSize && captureCheck(color, index - 1)
+        !radarActive ? data.squareGrowth[index - 1] = `captured ${currentPlayer}` : data.squareGrowth[index - 1] = 'predicted'
+        // setGrowth(data.squareGrowth)
+        roundCaptured++
+        tempSquareArr[index - 1].colIndex <= boardSize && captureCheck(color, index - 1, currentPlayer)
       }
     }
     // // // // down
@@ -346,11 +341,13 @@ function App() {
       if (tempSquareArr[index].color == tempSquareArr[index + boardSize].color) {
         tempSquareArr[index + boardSize].color = color
         tempSquareArr[index + boardSize].captured = true
+        tempSquareArr[index + boardSize].owner = currentPlayer
         !radarActive && updateSquareCount(color)
         !radarActive && totalCaptured++
-        !radarActive ? data.squareGrowth[index + boardSize] = 'captured' : data.squareGrowth[index + boardSize] = 'predicted'
-        setGrowth(data.squareGrowth)
-        tempSquareArr[index + boardSize].rowIndex <= boardSize && captureCheck(color, index + boardSize)
+        !radarActive ? data.squareGrowth[index + boardSize] = `captured ${currentPlayer}` : data.squareGrowth[index + boardSize] = 'predicted'
+        // setGrowth(data.squareGrowth)
+        roundCaptured++
+        tempSquareArr[index + boardSize].rowIndex <= boardSize && captureCheck(color, index + boardSize, currentPlayer)
       }
     }
     // // //up
@@ -358,11 +355,13 @@ function App() {
       if (tempSquareArr[index].color == tempSquareArr[index - boardSize].color) {
         tempSquareArr[index - boardSize].color = color
         tempSquareArr[index - boardSize].captured = true
+        tempSquareArr[index - boardSize].owner = currentPlayer
         !radarActive && updateSquareCount(color)
         !radarActive && totalCaptured++
-        !radarActive ? data.squareGrowth[index - boardSize] = 'captured' : data.squareGrowth[index - boardSize] = 'predicted'
-        setGrowth(data.squareGrowth)
-        tempSquareArr[index - boardSize].rowIndex <= boardSize && captureCheck(color, index - boardSize)
+        !radarActive ? data.squareGrowth[index - boardSize] = `captured ${currentPlayer}` : data.squareGrowth[index - boardSize] = 'predicted'
+        // setGrowth(data.squareGrowth)
+        roundCaptured++
+        tempSquareArr[index - boardSize].rowIndex <= boardSize && captureCheck(color, index - boardSize, currentPlayer)
       }
     }
   }
@@ -428,31 +427,6 @@ function App() {
     setGrowth(data.squareGrowth)
   }
 
-  function handleSizeChange(event) {
-    // console.log(customBoardSize)
-    // if (customBoardSize >= 5 && customBoardSize <= 40) {
-    //   boardSize = parseInt(customBoardSize)
-    //   totalDim = parseInt(customBoardSize * customBoardSize)
-    //   sizeString = 'Custom'
-    // }
-    // else {
-    //   boardSize = parseInt(event.target.value)
-    //   totalDim = parseInt(event.target.value * event.target.value)
-    //   handleReset()
-    // }
-    setNewBoardSize(event.target.value)
-  }
-
-  const handleCustomBoardSize = (event) => {
-    if (event.target.value == '') {
-      setCustomBoardSize('')
-    }
-    else {
-      let x = parseInt(event.target.value)
-      setCustomBoardSize(x)
-    }
-  }
-
   const handleGridToggle = (event) => {
     !grid ? localStorage.setItem('grid', 'true') : localStorage.setItem('grid', 'false')
     setGrid(!grid)
@@ -467,7 +441,7 @@ function App() {
     // for (let i = 0; i < 5; i++) {
     //   document.documentElement.style.setProperty(colors[i], `${event.target.parentElement.querySelectorAll('.palColor')[i].style.background}`);
     // }
-    for (let i = 0; i < colors.length; i++) {
+    for (let i = 0; i < colors.length - 1; i++) {
       localStorage.setItem(colors[i], event.target.parentElement.querySelectorAll('.palColor')[i].style.background)
       document.documentElement.style.setProperty(colors[i], `${event.target.parentElement.querySelectorAll('.palColor')[i].style.background}`)
     }
@@ -482,7 +456,6 @@ function App() {
     x != null && document.querySelectorAll('.row')[x.length - 1].scrollIntoView({ behavior: "smooth", block: "end", inline: "nearest" });
   }, [isOpen])
 
-
   return (
     <div className='gameContainer'>
       <div className='settingsIcon' onClick={handleOpen}>{isOpen ? 'X' : 'O'}</div>
@@ -490,7 +463,6 @@ function App() {
         <fetcher.Form className='scoreData' method='post'>
             <input type='hidden' value={turnCount} name='score'></input>
             <input type='hidden' value={boardSize} name='boardSize'></input>
-            <input type='hidden' value={boardId} name='boardId'></input>
             <input type='hidden' value={newBoardSize} name='newBoardSize'></input>
             <input type='hidden' value={turnLogJSON} name='turnLog'></input>
             <input type='hidden' value={user.username} name='username'></input>
@@ -513,8 +485,25 @@ function App() {
         {fetcher.state !== 'submitting' && <button type='submit' onClick={handleRetry}>Retry</button>}
       </dialog>
     <section className={`left ${isOpen ? 'hide' : ''}`}>
-      <h1>{data.bestGlobalScore ? `${count} / ${data.bestGlobalScore.score}` : count}</h1>
-      <div className='board' style={{gridTemplateColumns: `repeat(${boardSize}, 1fr)`, background: !radarActive ? selectedColor : 'white'}}>
+      <section className='buttonSection'>
+        {user.username == data.gameSession.ownerName ? 
+        <div className={`colorRow ${data.gameSession.turn == 'Owner' && data.gameSession.ownerName == user.username ? 'faded' : ''}`}>
+          <div className={`color off ${data.squareData[data.squareData.length - 1].color == 'var(--red)' ? 'grayed' : ''}`} style={{background: 'var(--red)'}}></div>
+          <div className={`color off ${data.squareData[data.squareData.length - 1].color == 'var(--orange)' ? 'grayed' : ''}`} style={{background: 'var(--orange)'}}></div>
+          <div className={`color off ${data.squareData[data.squareData.length - 1].color == 'var(--yellow)' ? 'grayed' : ''}`} style={{background: 'var(--yellow)'}}></div>
+          <div className={`color off ${data.squareData[data.squareData.length - 1].color == 'var(--green)' ? 'grayed' : ''}`} style={{background: 'var(--green)'}}></div>
+          <div className={`color off ${data.squareData[data.squareData.length - 1].color == 'var(--blue)' ? 'grayed' : ''}`} style={{background: 'var(--blue)'}}></div>
+        </div> :
+        <div className={`colorRow ${data.gameSession.turn == 'Opponent' && data.gameSession.opponentName == user.username ? 'faded' : ''}`}>
+          <div className={`color off ${data.squareData[0].color == 'var(--red)' ? 'grayed' : ''}`} style={{background: 'var(--red)'}}></div>
+          <div className={`color off ${data.squareData[0].color == 'var(--orange)' ? 'grayed' : ''}`} style={{background: 'var(--orange)'}}></div>
+          <div className={`color off ${data.squareData[0].color == 'var(--yellow)' ? 'grayed' : ''}`} style={{background: 'var(--yellow)'}}></div>
+          <div className={`color off ${data.squareData[0].color == 'var(--green)' ? 'grayed' : ''}`} style={{background: 'var(--green)'}}></div>
+          <div className={`color off ${data.squareData[0].color == 'var(--blue)' ? 'grayed' : ''}`} style={{background: 'var(--blue)'}}></div>
+        </div>
+        }
+      </section>
+      <div className={`board ${user.username == data.gameSession.opponentName ? 'flip' : ''}`} style={{gridTemplateColumns: `repeat(${boardSize}, 1fr)`, background: !radarActive ? selectedColor : 'white'}}>
         {data.squareData.map((sq, index) => {
           return (
             <div className={`square ${data.squareGrowth[index] == false ? '' : data.squareGrowth[index]}`} key={sq.index} style={{background: colorState[index].fakeColor, border: grid ? '1px solid black' : ''}}></div>
@@ -522,7 +511,7 @@ function App() {
         })}
       </div>
       <section className='buttonSection'>
-        <div className='extraRow'>
+        {/* <div className='extraRow'>
           <div className='resetButton'>
             <fetcher.Form reloadDocument method='post' action='/game'>
               <input type='hidden' value='newBoard' name='submitType'></input>
@@ -530,23 +519,44 @@ function App() {
               <button type='submit'>New Board</button>
             </fetcher.Form>
           </div>
-          {/* <div className={`saveButton ${saveActive === true ? 'active' : ''}`} onClick={handleSave}>
-            <h3>Save</h3>
-          </div> */}
           <button className='retryButton' onClick={handleRetry}>Retry Board</button>
           <button className={`predictButton ${radarActive == true ? 'active' : ''}`} onClick={handlePredict}>Radar</button>
-        </div>
-        <div className='colorRow'>
+        </div> */}
+        {user.username == data.gameSession.ownerName ? 
+        <div className={`colorRow ${data.gameSession.turn == 'Owner' && data.gameSession.ownerName == user.username ? '' : 'faded'}`}>
+          <div className={`color ${selectedColor === 'var(--red)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--red)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--red)') : e.preventDefault()} style={{ background: 'var(--red)' }}></div>
+          <div className={`color ${selectedColor === 'var(--orange)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--orange)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--orange)') : e.preventDefault()} style={{ background: 'var(--orange)' }}></div>
+          <div className={`color ${selectedColor === 'var(--yellow)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--yellow)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--yellow)') : e.preventDefault()} style={{ background: 'var(--yellow)' }}></div>
+          <div className={`color ${selectedColor === 'var(--green)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--green)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--green)') : e.preventDefault()} style={{ background: 'var(--green)' }}></div>
+          <div className={`color ${selectedColor === 'var(--blue)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--blue)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--blue)') : e.preventDefault()} style={{ background: 'var(--blue)' }}></div>
+        </div> :
+        <div className={`colorRow ${data.gameSession.turn == 'Opponent' && data.gameSession.opponentName == user.username ? '' : 'faded'}`}>
           <div className={`color ${selectedColor === 'var(--red)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--red)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--red)') : e.preventDefault()} style={{ background: 'var(--red)' }}></div>
           <div className={`color ${selectedColor === 'var(--orange)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--orange)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--orange)') : e.preventDefault()} style={{ background: 'var(--orange)' }}></div>
           <div className={`color ${selectedColor === 'var(--yellow)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--yellow)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--yellow)') : e.preventDefault()} style={{ background: 'var(--yellow)' }}></div>
           <div className={`color ${selectedColor === 'var(--green)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--green)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--green)') : e.preventDefault()} style={{ background: 'var(--green)' }}></div>
           <div className={`color ${selectedColor === 'var(--blue)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--blue)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--blue)') : e.preventDefault()} style={{ background: 'var(--blue)' }}></div>
         </div>
+        }
+       
       </section>
     </section>
     <section className='right'>
-      <div className='scoreboard'>
+      <div className='captureCounter'>
+        <div className='me'>
+          <h4 className='playerName'>{user.username == data.gameSession.ownerName ? data.gameSession.ownerName : data.gameSession.opponentName}</h4>
+          <div className='fakeSquare' style={{background: user.username == data.gameSession.ownerName ? ' var(--owner)' : 'var(--opponent)'}}>
+            <h4>{user.username == data.gameSession.ownerName ? ownerScore : opponentScore}</h4>
+          </div>
+        </div>
+        <div className='you'>
+          <h4 className='playerName'>{user.username == data.gameSession.ownerName ? data.gameSession.opponentName : data.gameSession.ownerName}</h4>
+          <div className='fakeSquare' style={{background: user.username == data.gameSession.ownerName ? ' var(--opponent)' : 'var(--owner)'}}>
+            <h4>{user.username == data.gameSession.ownerName ? opponentScore : ownerScore}</h4>
+          </div>
+        </div>
+      </div>
+      {/* <div className='scoreboard'>
       <h2>{data.bestGlobalScore ? `Score to Beat: ${data.bestGlobalScore.score}` : `High Score: ${highScore}`}</h2>
       <h3>Squares Remaining</h3>
         <div className='squareRow'>
@@ -566,30 +576,9 @@ function App() {
             <h4>{squareCounter[4].count}</h4>
           </div>
         </div>
-      </div>
+      </div> */}
       <div className={`options ${isOpen ? 'show' : ''}`}>
         <div className='optionWrap'>
-          <div className='boardSize'>
-            <h2>Board Size</h2>
-            <div className='boardOptions'>
-              <div className='option'>
-                <input id='small' type='radio' name='size' checked={newBoardSize == '10'} value={10} onChange={handleSizeChange}/>
-                <label htmlFor='small'>Small</label>
-              </div>
-              <div className='option'>
-                <input id='medium' type='radio' name='size' checked={newBoardSize == '15'} value={15} onChange={handleSizeChange}/>
-                <label htmlFor='medium'>Medium</label>
-              </div>
-              <div className='option'>
-                <input id='large' type='radio' name='size' checked={newBoardSize == '20'} value={20} onChange={handleSizeChange}/>
-                <label htmlFor='large'>Large</label>
-              </div>
-              {/* <div className='customOption'>
-                <label htmlFor='customInput'>Custom</label>
-                <input id='customInput' type='text' name='size' value={customBoardSize} placeholder='5-40' onChange={handleCustomBoardSize}/>
-              </div> */}
-            </div>
-          </div>
           <div className='gridView'>
             <h2>Grid View</h2>
             <input id='grid' type='checkbox' value='1px solid black' checked={grid} name='grid' onChange={handleGridToggle}></input>
@@ -607,7 +596,7 @@ function App() {
               <h3>You</h3>
               <h3>{data.bestGlobalScore.userName}</h3>
           </div>}
-          <div className='turnLogBox'>
+          {/* <div className='turnLogBox'>
             {turnLog && turnLog.map((row, index) => {
               return (
                 <div className='row'>
@@ -621,15 +610,12 @@ function App() {
                   <div className='fakeSquare' style={oppTurnLog.turnLog[index] && {background: oppTurnLog.turnLog[index].color}}>
                     <h4>{oppTurnLog.turnLog[index] && oppTurnLog.turnLog[index].captured}</h4>
                   </div>
-                  {/* <div className='fakeSquare' style={data.bestGlobalScore && {background: JSON.parse(data.bestGlobalScore.turnlog.turnLog[index]).color}}>
-                    <h4>{data.bestGlobalScore && JSON.parse(data.bestGlobalScore.turnlog.turnLog[index]).captured}</h4>
-                  </div> */}
                 </div>}
               </div>
               )
             })}
             <div className='anchor'></div>
-          </div>
+          </div> */}
         </div>
         <h2 className='colorOptions'>Color Options</h2>
         <div className='colorPalette'>
@@ -638,10 +624,7 @@ function App() {
             <div className='palColor' style={{background: 'var(--orange)'}}></div>
             <div className='palColor' style={{background: 'var(--yellow)'}}></div>
             <div className='palColor' style={{background: 'var(--green)'}}></div>
-            <div className='palColor' style={{background: 'var(--blue)'}}>
-            <div className='palColor hide' style={{background: 'white'}}></div>
-            <div className='palColor hide' style={{background: 'black'}}></div>
-          </div>
+            <div className='palColor' style={{background: 'var(--blue)'}}></div>
           </div>
           <div className='colorHolder' onClick={handlePaletteSwap}>
             <div className='palColor' style={{background: 'hsl(0, 100%, 40%)'}}></div>
@@ -649,6 +632,8 @@ function App() {
             <div className='palColor' style={{background: 'hsl(60, 100%, 50%)'}}></div>
             <div className='palColor' style={{background: 'hsl(130, 100%, 15%)'}}></div>
             <div className='palColor' style={{background: 'hsl(242, 69%, 49%)'}}></div>
+            <div className='palColor hide' style={{background: 'white'}}></div>
+            <div className='palColor hide' style={{background: 'black'}}></div>
           </div>
           <div className='colorHolder' onClick={handlePaletteSwap}>
             <div className='palColor' style={{background: 'hsl(33, 90.8%, 12.7%)'}}></div>

@@ -3,7 +3,14 @@ import bcrypt from "bcryptjs";
 import { prisma } from "~/db.server";
 
 export async function getUserById(id) {
-  return prisma.user.findUnique({ where: { id } });
+  return prisma.user.findUnique({ where: { id }, select: {username: true}},);
+}
+
+export function getUserNameById({ id }) {
+  return prisma.user.findUnique({
+    where: {id: id},
+    select: {username: true}
+  })
 }
 
 export async function getUserList(id) {

@@ -24,12 +24,11 @@ export const action = async ({ request }) => {
   const gamemode = formData.get('mode')
   const playing = formData.get('playing')
   const id = formData.get('id')
-  const playerId = formData.get('playerId')
   const recentMode = formData.get('recentMode')
 
-  if (id != false && userId == playerId) {
+  if (id != false) {
     const recentBoard = await getRecentBoard({ id })
-    if (recentBoard || playing == 'true') {
+    if (recentBoard) {
       if (gamemode == 'freeplay' && recentMode == 'freeplay') {
         return redirect(`/game/${recentBoard.id}`)
       }
@@ -74,13 +73,11 @@ export default function Index() {
   const [playing, setPlaying] = useState(false)
   const [id, setId] = useState(false)
   const [gamemode, setGamemode] = useState(false)
-  const [playerId, setPlayerId] = useState(false)
 
   useEffect(() => {
     setPlaying(localStorage.getItem('playing'))
     setId(localStorage.getItem('recentId'))
     setGamemode(localStorage.getItem('gamemode'))
-    setPlayerId(localStorage.getItem('playerId'))
   })
  
   return (
@@ -97,7 +94,6 @@ export default function Index() {
           <input type='hidden' value={playing} name='playing'></input>
           <input type='hidden' value={id} name='id'></input>
           <input type='hidden' value={gamemode} name='recentMode'></input>
-          <input type='hidden' value={playerId} name="playerId"></input>
         </Form>
         {/* <Link to='/progmenu'><h2>Progressive</h2></Link> */}
         <Form reloadDocument method='post'>
@@ -106,17 +102,16 @@ export default function Index() {
           <input type='hidden' value={playing} name='playing'></input>
           <input type='hidden' value={id} name='id'></input>
           <input type='hidden' value={gamemode} name='recentMode'></input>
-          <input type='hidden' value={playerId} name="playerId"></input>
         </Form>
-        <Form reloadDocument method='post'>
+        {/* <Form reloadDocument method='post'>
           <button type="submit">Player Vs Player (Local)</button>
           <input type='hidden' value='pvp' name='mode'></input>
           <input type='hidden' value={playing} name='playing'></input>
           <input type='hidden' value={id} name='id'></input>
           <input type='hidden' value={gamemode} name='recentMode'></input>
-          <input type='hidden' value={playerId} name="playerId"></input>
-        </Form>
+        </Form> */}
         {/* <Link><h2>Player vs Player (local)</h2></Link> */}
+        <Link to='/pvpmenu'><h2>Player vs Player</h2></Link>
       </div>
     </main>
     </>

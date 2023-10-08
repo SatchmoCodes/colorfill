@@ -14,6 +14,7 @@ class Square {
 const colors = ['var(--red)', 'var(--orange)', 'var(--yellow)', 'var(--green)', 'var(--blue)']
 
 function generateBoard(colorString) {
+    console.log(colorString.length)
     let dimensions = Math.sqrt(colorString.length)
     let squareArr = new Array(dimensions).fill(0).map((_, rowIndex) => new Array(dimensions).fill(0).map((_, colIndex) => ({ value: 0, rowIndex, colIndex })))
     let colorArr = []
@@ -29,10 +30,11 @@ function generateBoard(colorString) {
         })
     })
     squareArr[0][0].captured = true
-    squareArr[0][0].owner = 1
-    squareArr[squareArr.length -1][squareArr.length -1].captured = true
-    squareArr[squareArr.length -1][squareArr.length -1].owner = 2
-    
+    squareArr[0][0].owner = 'Owner'
+    squareArr[squareArr.length - 1][squareArr.length - 1].captured = true
+    squareArr[squareArr.length - 1][squareArr.length - 1].owner = 'Opponent'
+    console.log('balls')
+    console.log(squareArr[squareArr.length - 1][squareArr.length - 1])    
     return squareArr
 }
 

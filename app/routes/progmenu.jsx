@@ -1,7 +1,5 @@
 import { Link } from "@remix-run/react";
 
-import gameOption from '~/routes/gameOptions.js'
-
 import { useOptionalUser } from "~/utils";
 
 import index from '~/styles/index.css'
