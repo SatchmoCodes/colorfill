@@ -9,7 +9,7 @@ import logo from '~/img/Colorfill.png'
 import {useState, useEffect} from 'react'
 
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
+import { useLoaderData, Form } from "@remix-run/react";
 import { useSubmit } from "@remix-run/react"
 import { useEventSource } from "remix-utils";
 import { getGameSession, updateUserInSession } from "../models/gamesession.server";
@@ -32,7 +32,7 @@ export const action = async ({ request }) => {
 
   const username = await getUserNameById({ id: userId})
   console.log(username)
-  const updatedSession = await updateUserInSession({ id: sessionId, opponentName: username.username})
+  const updatedSession = await updateUserInSession({ id: sessionId, opponentName: username.username, gameState: 'Waiting'})
   console.log(updatedSession)
 
   emitter.emit('edit-gameSession', `${JSON.stringify(updatedSession)}\n\n`)
@@ -46,13 +46,14 @@ export default function Index() {
   let loaderData = useLoaderData()
   const submit = useSubmit()
 
-  console.log(loaderData.games)
-
   const [games, setGames] = useState(loaderData.games)
   let newGameSession = useEventSource('/pvpmenu/subscribe', {event: 'new-gameSession'})
   let editedGameSession = useEventSource('/pvplobby/subscribe', {event: 'edit-gameSession'})
 
+
+   
   useEffect(() => {
+    console.log('balls')
     let parsedGameSession = JSON.parse(newGameSession)
     if (parsedGameSession != null) {
       setGames((prev) => [...prev, parsedGameSession])
@@ -63,24 +64,35 @@ export default function Index() {
     let parsedEditedSession = JSON.parse(editedGameSession)
     if (parsedEditedSession != null) {
       let gameArr = loaderData.games
-      let newGameArr = gameArr.filter(game => game.id != parsedEditedSession.id)
-      setGames([...newGameArr, parsedEditedSession])
+      let newGameArr = gameArr.filter(game => game.id != parsedEditedSession.id && game.gameState == 'Waiting')
+      console.log('tits')
+      console.log(newGameArr)
+      console.log('parsed')
+      console.log(parsedEditedSession)
+      parsedEditedSession.gameState == 'Waiting' ? setGames([parsedEditedSession, ...newGameArr]) : setGames(newGameArr)
+      // if (parsedEditedSession.gameState == 'Waiting') {
+      //   setGames([parsedEditedSession, newGameArr])
+      // }
+      // else {
+      //   if (newGameArr.length == 0) {
+      //     setGames([])
+      //   }
+      //   else {
+      //     setGames([newGameArr])
+      //   }
+      // }
     }
   }, [editedGameSession])
 
-  function handleJoin(event) {
-    submit({id: event.target.dataset.id}, {method: 'post'})
-  }
-
-  console.log(games)
 
   return (
    
     <>
     <main>
       <div className="top">
-
-        <img src={logo}></img>
+        <Link to='/'>
+          <img src={logo}></img>
+        </Link>
       </div>
       <div className="gameList">
         <h2>Game List</h2>
@@ -95,7 +107,10 @@ export default function Index() {
                 <h3>{game.ownerName} (Owner)</h3>
                 <h3>{game.ownerName == game.opponentName ? 'Waiting on player...' : game.opponentName}</h3>
                 {game.ownerName == game.opponentName && 
-                <button data-id={game.id} onClick={handleJoin}>Join</button>
+                <Form method='POST' reloadDocument>
+                  <input type='hidden' name='id' value={game.id}></input>
+                  <button type='submit'>Join</button>
+                </Form> 
                 }
               </div>
             )

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useEffect } from 'react'
 import { json, redirect } from "@remix-run/node";
 import gameStyle from '~/styles/game.css'
@@ -20,6 +20,8 @@ import invariant from "tiny-invariant";
 
 import { useFetcher } from "@remix-run/react";
 import { getBestScore, getBestBoardScore } from '../models/score.server';
+
+import { useBeforeUnload } from '@remix-run/react';
 
 
 export const loader = async ({ params, request }) => {
@@ -170,6 +172,7 @@ function App() {
   const [oppTurnLog, setOppTurnLog] = useState(null)
 
   const [boardId, setBoardId] = useState(data.board.id)
+
 
   useEffect(() => {
     if (!hasRun) {

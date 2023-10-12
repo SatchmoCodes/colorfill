@@ -84,8 +84,9 @@ export default function Index() {
     <>
     <main>
       <div className="top">
-
-        <img src={logo}></img>
+        <Link to='/'>
+            <img src={logo}></img>
+        </Link>
       </div>
       <div className="gameOptions">
         <Form reloadDocument method='post'>

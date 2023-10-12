@@ -18,6 +18,10 @@ main img {
     object-fit: contain;
 }
 
+main .top a {
+    flex-basis: 100%;
+}
+
 main .top {
     display: flex;
     min-height: 50vh;
