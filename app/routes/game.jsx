@@ -23,6 +23,8 @@ import { getBestScore, getBestBoardScore } from '../models/score.server';
 
 import { useBeforeUnload } from '@remix-run/react';
 
+import { useHydrated } from "remix-utils"
+
 
 export const loader = async ({ params, request }) => {
   const userId = await requireUserId(request);
@@ -172,6 +174,8 @@ function App() {
   const [oppTurnLog, setOppTurnLog] = useState(null)
 
   const [boardId, setBoardId] = useState(data.board.id)
+
+  const isHydrated = useHydrated()
 
 
   useEffect(() => {
@@ -485,9 +489,10 @@ function App() {
     x != null && document.querySelectorAll('.row')[x.length - 1].scrollIntoView({ behavior: "smooth", block: "end", inline: "nearest" });
   }, [isOpen])
 
+  console.log(isHydrated)
 
   return (
-    <div className='gameContainer'>
+    <div className={`gameContainer ${isHydrated ? '' : 'animate-appear'}`}>
       <div className='settingsIcon' onClick={handleOpen}>{isOpen ? 'X' : 'O'}</div>
       <dialog className='scoreDialog'>
         <fetcher.Form className='scoreData' method='post'>
@@ -520,7 +525,7 @@ function App() {
       <div className='board' style={{gridTemplateColumns: `repeat(${boardSize}, 1fr)`, background: !radarActive ? selectedColor : 'white'}}>
         {data.squareData.map((sq, index) => {
           return (
-            <div className={`square ${data.squareGrowth[index] == false ? '' : data.squareGrowth[index]}`} key={sq.index} style={{background: colorState[index].fakeColor, border: grid ? '1px solid black' : ''}}></div>
+            <div className={`square ${data.squareGrowth[index] == false ? '' : data.squareGrowth[index]} ${isHydrated ? 'captureFade' : ''}`} key={sq.index} style={{background: colorState[index].fakeColor, border: grid ? '1px solid black' : ''}}></div>
           )
         })}
       </div>

@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { json, redirect } from "@remix-run/node";
 import gameStyle from '~/styles/game.css'
 import generateBoard from './pvpGenerator'
@@ -23,7 +23,10 @@ import { emitter } from "../services/emitter.server";
 import { useEventSource } from "remix-utils";
 
 import { useFetcher } from "@remix-run/react";
-import { getGameSessionById, updateBoardStateOwner, updateBoardStateOpponent } from '../models/gamesession.server';
+import { getGameSessionById, updateBoardStateOwner, updateBoardStateOpponent, updateSessionState, updateGameLeaver } from '../models/gamesession.server';
+
+import { useHydrated } from "remix-utils"
+
 
 export const HeadersFunction = () => {
   const headers = new Headers()
@@ -43,9 +46,11 @@ export const loader = async ({ params, request }) => {
   let squareData = JSON.parse(gameSession.boardState)
   squareData = squareData.flat()
   let squareGrowth = JSON.parse(gameSession.squareGrowth)
-  
+
+  if (gameSession.gameState == 'Finished') {
+    return redirect('/pvpmenu')
+  }
   return json({ gameSession, squareData, squareGrowth });
-  
 };
 
 
@@ -61,8 +66,6 @@ export const action = async ({ request }) => {
     const squareGrowth = formData.get('squareGrowth')
     const turn = formData.get('turn')
     const captured = parseInt(formData.get('captured'))
-    console.log(turn)
-    console.log(captured)
     if (turn == 'Owner') {
       const updatedGameSession = await updateBoardStateOpponent({ id: sessionId, boardState, squareGrowth, turn, opponentScore: captured})
       emitter.emit('updateBoard-gameSession', JSON.stringify(updatedGameSession))
@@ -75,6 +78,7 @@ export const action = async ({ request }) => {
   return null
 }
 
+const colors = ['var(--red)', 'var(--orange)', 'var(--yellow)', 'var(--green)', 'var(--blue)']
 const paletteColors = ['--red', '--orange', '--yellow', '--green', '--blue', '--owner', '--opponent']
 let totalCaptured = 0
 let turnCount = 0
@@ -123,14 +127,67 @@ let numberCaptured = 0
 let hasRun = false
 let currentPlayer
 let roundCaptured = 0
+let fakeCaptured = 0
+let fakeTurnArr = ['Owner', 'Opponent']
+let fakeTurn
+let totalSquares
+let squaresCaptured
+let remainingSquares
 
 function App() {
   const user = useUser()
   const fetcher = useFetcher()
   const data = useLoaderData()
   const navigation = useNavigation()
+  const isHydrated = useHydrated()
 
   const isSubmitting = navigation.formAction === '/game'
+
+  const Ref = useRef(null);
+ 
+    // The state for our timer
+    const [timer, setTimer] = useState(11);
+ 
+    const getTimeRemaining = (e) => {
+        const total = Date.parse(e) - Date.parse(new Date());
+        const seconds = Math.floor((total / 1000) % 60);
+        const minutes = Math.floor((total / 1000 / 60) % 60);
+        const hours = Math.floor((total / 1000 / 60 / 60) % 24);
+        return {
+            total, hours, minutes, seconds
+        };
+    }
+ 
+    const startTimer = (e) => {
+        let { total, hours, minutes, seconds } 
+                    = getTimeRemaining(e);
+        if (total >= 0) {
+            setTimer(
+                seconds
+            )
+        }
+    }
+
+    const clearTimer = (e) => { 
+        setTimer(11);
+        if (Ref.current) clearInterval(Ref.current);
+          const id = setInterval(() => {
+            startTimer(e);
+        }, 1000)
+        Ref.current = id;
+        
+    }
+ 
+    const getDeadTime = () => {
+        let deadline = new Date();
+        deadline.setSeconds(deadline.getSeconds() + 11);
+        return deadline;
+    }
+    useEffect(() => {
+        clearTimer(getDeadTime());
+    }, []);
+
+   
 
   const [count, setCount] = useState(turnCount) //track # of turns
   const [colorState, setColorState] = useState(data.squareData) //tracks color of entire board
@@ -150,21 +207,20 @@ function App() {
   const [turnLog, setTurnLog] = useState(turnLogArr)
   const [ownerScore, setOwnerScore] = useState(data.gameSession.ownerScore)
   const [opponentScore, setOpponentScore] = useState(data.gameSession.opponentScore)
+  const [ownerColor, setOwnerColor] = useState(data.squareData[0].color)
+  const [opponentColor, setOpponentColor] = useState(data.squareData[data.squareData.length - 1].color)
+  const [turnOrder, setTurnOrder] = useState(data.gameSession.turn)
+  const [leaver, setLeaver] = useState(null)
 
 
   let boardUpdate = useEventSource('/pvpgame/subscribe', {event: 'updateBoard-gameSession'})
 
-  useBeforeUnload(
-    useCallback(() => {
-      alert('hi')
-    })
-  )
-
   useEffect(() => {
     if (boardUpdate) {
+      console.log('board update')
       let parsedBoardUpdate = JSON.parse(boardUpdate)
-      if (parsedBoardUpdate != null) {
-        let totalSquares = data.squareData.length
+      if (parsedBoardUpdate != null && parsedBoardUpdate.id == data.gameSession.id) {
+        totalSquares = data.squareData.length
         // setGrowth(JSON.parse(parsedBoardUpdate.squareGrowth))
         data.squareGrowth = JSON.parse(parsedBoardUpdate.squareGrowth)
         setColorState(JSON.parse(parsedBoardUpdate.boardState))
@@ -172,25 +228,70 @@ function App() {
         data.gameSession.turn = parsedBoardUpdate.turn
         data.squareData = tempSquareArr
         parsedBoardUpdate.turn == 'Owner' ? setOpponentScore(parsedBoardUpdate.opponentScore) : setOwnerScore(parsedBoardUpdate.ownerScore)
-        let squaresCaptured = parsedBoardUpdate.ownerScore + parsedBoardUpdate.opponentScore
-        let remainingSquares = totalSquares - squaresCaptured
+        parsedBoardUpdate.turn == 'Owner' ? setOpponentColor(tempSquareArr[tempSquareArr.length - 1].color) : setOwnerColor(tempSquareArr[0].color)
+        squaresCaptured = parsedBoardUpdate.ownerScore + parsedBoardUpdate.opponentScore
+        remainingSquares = totalSquares - squaresCaptured
         setOwnerScore(parsedBoardUpdate.ownerScore)
         setOpponentScore(parsedBoardUpdate.opponentScore)
+        clearTimer(getDeadTime())
+        setTurnOrder(parsedBoardUpdate.turn)
+        document.querySelector('.time').classList.remove('crunch')
+        setRadarActive(true)
         if (parsedBoardUpdate.ownerScore + remainingSquares < parsedBoardUpdate.opponentScore) {
           setComplete(true)
         }
         else if (parsedBoardUpdate.opponentScore + remainingSquares < parsedBoardUpdate.ownerScore) {
           setComplete(true)
-        }
+      }
       }
     }
   }, [boardUpdate])
 
+
   useEffect(() => {
     if (complete) {
+      clearInterval(Ref.current)
       document.querySelector('.victory').show()
     }
   }, [complete])
+
+
+  //checks to see if player has no moves left and ends game accordingly
+  useEffect(() => {
+    if (radarActive && !complete) {
+      let parsedBoardUpdate = JSON.parse(boardUpdate)
+      let turn
+      for (let x = 0; x < fakeTurnArr.length; x++) {
+        fakeTurn = fakeTurnArr[x]
+        for (let i = 0; i < colors.length; i++) {
+          colorChange(colors[i])
+        }
+        console.log(fakeCaptured)
+        fakeCaptured == 0 ? console.log('0 squares possible to be captured') : console.log('squares can still be captured')
+        if (fakeCaptured == 0) {
+          if (parsedBoardUpdate.turn == 'Owner') {
+            turn = 'Opponent'
+            numberCaptured = remainingSquares
+            console.log('remaining')
+            console.log(remainingSquares)
+          }
+          else {
+            turn = 'Owner'
+            numberCaptured = remainingSquares
+            console.log('remaining')
+            console.log(remainingSquares)
+          }
+          boardStateJSON = JSON.stringify(tempSquareArr)
+          let squareGrowthJSON = JSON.stringify(data.squareGrowth)
+          fetcher.submit({boardState: boardStateJSON, submitType: 'boardUpdate', turn: turn, sessionId: data.gameSession.id, squareGrowth: squareGrowthJSON, captured: numberCaptured}, {method: 'post'})
+        }
+        fakeCaptured = 0
+      }
+      setRadarActive(false)
+      fakeCaptured = 0
+    }
+   
+  }, [radarActive])
 
   useEffect(() => {
     if (data.squareGrowth) {
@@ -198,10 +299,8 @@ function App() {
     }
   }, [data.squareGrowth])
 
-console.log(data.gameSession.boardData)
   useEffect(() => {
     if (!hasRun) {
-      console.log('do i run every time')
       tempSquareArr = JSON.parse(JSON.stringify(data.squareData))
       tempSquareArr.forEach(sq => {
         // boardCode += (colors.indexOf(sq.color))
@@ -225,18 +324,17 @@ console.log(data.gameSession.boardData)
     //     captureCheck(sq.color, index, "Opponent");
     //   }
     // });
-    if (data.gameSession.ownerName == user.username) {
-      setSelectedColor(data.squareData[0].color)
-    }
-    else if (data.gameSession.opponentName == user.username) {
-      console.log(data.squareData[data.squareData.length - 1].color)
-      setSelectedColor(data.squareData[data.squareData.length - 1].color)
-    }
+    // if (data.gameSession.ownerName == user.username) {
+    //   setSelectedColor(data.squareData[0].color)
+    // }
+    // else if (data.gameSession.opponentName == user.username) {
+    //   setSelectedColor(data.squareData[data.squareData.length - 1].color)
+    // }
     data.squareData = JSON.parse(JSON.stringify(tempSquareArr))
     setColorState(tempSquareArr)
     localStorage.getItem('grid') == 'true' && setGrid(true)
     hasRun = true
-    user.username == data.gameSession.opponentName && setSelectedColor(data.squareData[data.squareData.length - 1].color)
+    clearTimer(getDeadTime())
     }
     for (let i = 0; i < paletteColors.length; i++) {
       if (localStorage.getItem(paletteColors[i])) {
@@ -246,20 +344,73 @@ console.log(data.gameSession.boardData)
     
   }, []);
 
+  useEffect(() => {
+    if (timer <= 4) {
+      document.querySelector('.time').classList.add('crunch')
+    }
+    let blockedColor
+    console.log(timer)
+    if (timer <= 0) {
+      console.log('balls')
+      console.log(turnOrder)
+      if (turnOrder == 'Owner') {
+        for (let i = 0; i < colors.length; i++) {
+          if (ownerColor == colors[i]) {
+            blockedColor = i
+            console.log('owner color')
+            console.log(ownerColor)
+          }
+        }
+      }
+      else {
+        console.log('else')
+        for (let i = 0; i < colors.length; i++) {
+          if (opponentColor == colors[i]) {
+            blockedColor = i
+            console.log('opponent color')
+            console.log(opponentColor)
+            
+          }
+        }
+      }
+      let selectedColor = Math.floor(Math.random() * 5) 
+      while (selectedColor == blockedColor) {
+        selectedColor = Math.floor(Math.random() * 5)
+      }
+      console.log('color here')
+      console.log(colors[selectedColor])
+      colorChange(colors[selectedColor])
+    }
+  }, [timer])
+
 
   function colorChange(color) {
     roundCaptured = 0
-    if (data.gameSession.turn == 'Owner' && data.gameSession.ownerName != user.username) {
-      alert('it is not your turn')
-      return
+    if (!radarActive) {
+      console.log("timer")
+      console.log(timer)
+      if (timer > 0) {
+        if (turnOrder == 'Owner' && data.gameSession.ownerName != user.username) {
+          alert('it is not your turn')
+          return
+        }
+        else if (turnOrder == 'Opponent' && data.gameSession.opponentName != user.username) {
+          alert('it is not your turn')
+          return
+        }
+      }
     }
-    else if (data.gameSession.turn == 'Opponent' && data.gameSession.opponentName != user.username) {
-      alert('it is not your turn')
-      return
+    if (radarActive) {
+      fakeTurn == 'Owner' ? currentPlayer = 'Opponent' : currentPlayer = 'Owner'
     }
-    currentPlayer = data.gameSession.turn
+    else {
+      currentPlayer = data.gameSession.turn
+      console.log('current player')
+      console.log(currentPlayer)
+      console.log(color)
+      currentPlayer == 'Owner' ? setOwnerColor(color) : setOpponentColor(color)
+    }
     let numberCaptured = totalCaptured
-    console.log(localStorage.getItem('playing'))
     // setColorState(tempSquareArr)
     data.squareGrowth.map((e, index) => {
       if (e == 'predicted') {
@@ -268,19 +419,16 @@ console.log(data.gameSession.boardData)
     })
     // setGrowth(data.squareGrowth)
     !radarActive && turnCount++
-    !radarActive && setSelectedColor(color)
-    console.log(turnCount)
       tempSquareArr.forEach((sq, index) => {
         if (sq.captured && sq.owner == currentPlayer) {
-          console.log('true')
           captureCheck(color, index, currentPlayer)
         }
       })
     setColorState(tempSquareArr)
     setCount(turnCount)
-    // if (radarActive) {
-    //   tempSquareArr = JSON.parse(JSON.stringify(data.squareData))
-    // } 
+    if (radarActive) {
+      tempSquareArr = JSON.parse(JSON.stringify(data.squareData))
+    } 
     // data.squareData = JSON.parse(JSON.stringify(tempSquareArr))
     if (!radarActive) {
       numberCaptured = totalCaptured - numberCaptured
@@ -293,21 +441,13 @@ console.log(data.gameSession.boardData)
       setTurnLog(newArrayCauseReactIsLame)
     }
 
-    // if (totalCaptured >= (boardSize * boardSize) - 1) {
-    //   setComplete(true)
-    //   let turnLogObj = new Object()
-    //   turnLogObj.turnLog = turnLogArr
-    //   turnLogJSON = JSON.stringify(turnLogObj)
-    //   localStorage.setItem('playing', 'false')
-    //   if (turnCount < highScore || highScore == null) {
-    //     setHighScore(turnCount)
-    //   }
-    // }
-    let turn
-    data.gameSession.turn == 'Owner' ? turn = 'Opponent' : turn = 'Owner'
-    boardStateJSON = JSON.stringify(tempSquareArr)
-    let squareGrowthJSON = JSON.stringify(data.squareGrowth)
-    fetcher.submit({boardState: boardStateJSON, submitType: 'boardUpdate', turn: turn, sessionId: data.gameSession.id, squareGrowth: squareGrowthJSON, captured: numberCaptured}, {method: 'post'})
+    if (!radarActive) {
+      let turn
+      data.gameSession.turn == 'Owner' ? turn = 'Opponent' : turn = 'Owner'
+      boardStateJSON = JSON.stringify(tempSquareArr)
+      let squareGrowthJSON = JSON.stringify(data.squareGrowth)
+      fetcher.submit({boardState: boardStateJSON, submitType: 'boardUpdate', turn: turn, sessionId: data.gameSession.id, squareGrowth: squareGrowthJSON, captured: numberCaptured}, {method: 'post'})
+    }
   }
 
   useEffect(() => {
@@ -326,115 +466,84 @@ console.log(data.gameSession.boardData)
   }
 
   function captureCheck(color, index, currentPlayer) {
-     console.log(currentPlayer)
     !radarActive ? tempSquareArr[index].fakeColor = color :   tempSquareArr[index].fakeColor = data.squareData[index].fakeColor
     tempSquareArr[index].color = color
     // right
     if (tempSquareArr[index + 1] && tempSquareArr[index + 1].captured == false) {
       if (tempSquareArr[index].color == tempSquareArr[index + 1].color && tempSquareArr[index].rowIndex == tempSquareArr[index + 1].rowIndex) {
-        tempSquareArr[index + 1].color = color
-        tempSquareArr[index + 1].captured = true
-        tempSquareArr[index + 1].owner = currentPlayer
-        !radarActive && updateSquareCount(color)
-        !radarActive && totalCaptured++
-        !radarActive ? data.squareGrowth[index + 1] = `captured ${currentPlayer}` : data.squareGrowth[index + 1] = 'predicted'
-        // setGrowth(data.squareGrowth)
-        roundCaptured++
-        tempSquareArr[index + 1].colIndex <= boardSize && captureCheck(color, index + 1, currentPlayer)
+        if (!radarActive) {
+          tempSquareArr[index + 1].color = color
+          tempSquareArr[index + 1].captured = true
+          tempSquareArr[index + 1].owner = currentPlayer
+          data.squareGrowth[index + 1] = `captured ${currentPlayer}`
+          updateSquareCount(color)
+          roundCaptured++
+          totalCaptured++
+          tempSquareArr[index + 1].colIndex <= boardSize && captureCheck(color, index + 1, currentPlayer)
+        }
+        else {
+          fakeCaptured++
+          return
+        }
       }
     }
     //left
     if (tempSquareArr[index - 1] && tempSquareArr[index - 1].captured == false) {
       if (tempSquareArr[index].color == tempSquareArr[index - 1].color && tempSquareArr[index].rowIndex == tempSquareArr[index - 1].rowIndex) {
-        tempSquareArr[index - 1].color = color
-        tempSquareArr[index - 1].captured = true
-        tempSquareArr[index - 1].owner = currentPlayer
-        !radarActive && updateSquareCount(color)
-        !radarActive && totalCaptured++
-        !radarActive ? data.squareGrowth[index - 1] = `captured ${currentPlayer}` : data.squareGrowth[index - 1] = 'predicted'
-        // setGrowth(data.squareGrowth)
-        roundCaptured++
-        tempSquareArr[index - 1].colIndex <= boardSize && captureCheck(color, index - 1, currentPlayer)
+        if (!radarActive) {
+          tempSquareArr[index - 1].color = color
+          tempSquareArr[index - 1].captured = true
+          tempSquareArr[index - 1].owner = currentPlayer
+          data.squareGrowth[index - 1] = `captured ${currentPlayer}`
+          updateSquareCount(color)
+          roundCaptured++
+          totalCaptured++
+          tempSquareArr[index - 1].colIndex <= boardSize && captureCheck(color, index - 1, currentPlayer)
+        } 
+        else {
+          fakeCaptured++
+          return
+        }
       }
     }
     // // // // down
     if (tempSquareArr[index + boardSize] && tempSquareArr[index + boardSize].captured == false) {
       if (tempSquareArr[index].color == tempSquareArr[index + boardSize].color) {
-        tempSquareArr[index + boardSize].color = color
-        tempSquareArr[index + boardSize].captured = true
-        tempSquareArr[index + boardSize].owner = currentPlayer
-        !radarActive && updateSquareCount(color)
-        !radarActive && totalCaptured++
-        !radarActive ? data.squareGrowth[index + boardSize] = `captured ${currentPlayer}` : data.squareGrowth[index + boardSize] = 'predicted'
-        // setGrowth(data.squareGrowth)
-        roundCaptured++
-        tempSquareArr[index + boardSize].rowIndex <= boardSize && captureCheck(color, index + boardSize, currentPlayer)
+        if (!radarActive) {
+          tempSquareArr[index + boardSize].color = color
+          tempSquareArr[index + boardSize].captured = true
+          tempSquareArr[index + boardSize].owner = currentPlayer
+          data.squareGrowth[index + boardSize] = `captured ${currentPlayer}`
+          updateSquareCount(color)
+          roundCaptured++
+          totalCaptured++
+          tempSquareArr[index + boardSize].rowIndex <= boardSize && captureCheck(color, index + boardSize, currentPlayer)
+        }
+        else {
+          fakeCaptured++
+          return
+        }
       }
     }
     // // //up
     if (tempSquareArr[index - boardSize] && tempSquareArr[index - boardSize].captured == false) {
       if (tempSquareArr[index].color == tempSquareArr[index - boardSize].color) {
-        tempSquareArr[index - boardSize].color = color
-        tempSquareArr[index - boardSize].captured = true
-        tempSquareArr[index - boardSize].owner = currentPlayer
-        !radarActive && updateSquareCount(color)
-        !radarActive && totalCaptured++
-        !radarActive ? data.squareGrowth[index - boardSize] = `captured ${currentPlayer}` : data.squareGrowth[index - boardSize] = 'predicted'
-        // setGrowth(data.squareGrowth)
-        roundCaptured++
-        tempSquareArr[index - boardSize].rowIndex <= boardSize && captureCheck(color, index - boardSize, currentPlayer)
+        if (!radarActive) {
+          tempSquareArr[index - boardSize].color = color
+          tempSquareArr[index - boardSize].captured = true
+          tempSquareArr[index - boardSize].owner = currentPlayer
+          data.squareGrowth[index - boardSize] = `captured ${currentPlayer}`
+          updateSquareCount(color)
+          roundCaptured++
+          totalCaptured++
+          tempSquareArr[index - boardSize].rowIndex <= boardSize && captureCheck(color, index - boardSize, currentPlayer)
+        }
+        else {
+          fakeCaptured++
+          return
+        }
       }
     }
-  }
-
-
-  function handleRetry() {
-    console.log('hi')
-    turnCount = 0
-    tempSquareArr.forEach(sq => {
-      sq.color = sq.defaultColor
-      sq.fakeColor = sq.defaultColor
-      sq.captured = false
-    })
-    tempSquareArr[0].captured = true
-    
-   data.squareGrowth.forEach((e, index) => {
-    data.squareGrowth[index] = false
-   })
-    setGrowth(data.squareGrowth)
-    setColorState(tempSquareArr)
-    setCount(0)
-    totalCaptured = 0
-    squareCounterArr.forEach(counter => {
-      counter.count = 0
-    })
-
-    tempSquareArr.forEach(sq => {
-      squareCounterArr.forEach(counter => {
-        if (sq.color == counter.color && !sq.index == 0) {
-          counter.count++
-        }
-      })
-    })
-    
-    setSquareCounter(squareCounterArr)
-   
-    tempSquareArr.forEach((sq, index) => {
-      if (sq.captured) {
-        captureCheck(sq.color, index);
-      }
-    });
-    setColorState(tempSquareArr)
-    setSelectedColor(tempSquareArr[0].color)
-    data.squareData = JSON.parse(JSON.stringify(tempSquareArr))
-    setComplete(false)
-    turnLogArr = []
-    setTurnLog(turnLogArr)
-    document.querySelector('.endDialog').close()
-  }
-
-  function handleSave() {
-    setSaveActive(!saveActive)
   }
 
   function handlePredict() {
@@ -481,9 +590,9 @@ console.log(data.gameSession.boardData)
     window.location.href = '/pvpmenu'
   }
 
+
   return (
-    <div className='gameContainer'>
-      <Beforeunload onBeforeunload={(event) => event.preventDefault()} />
+    <div className={`gameContainer ${isHydrated ? '' : 'animate-appear'}`}>
       <div className='settingsIcon' onClick={handleOpen}>{isOpen ? 'X' : 'O'}</div>
       <dialog className='victory'>
         {ownerScore > opponentScore ? 
@@ -500,25 +609,26 @@ console.log(data.gameSession.boardData)
         }
       </dialog>
     <section className={`left ${isOpen ? 'hide' : ''}`}>
+      <h1 className='time'>{timer > 0 ? timer - 1 : 0}</h1>
       <section className='buttonSection'>
         {user.username == data.gameSession.ownerName ? 
-        <div className={`colorRow ${data.gameSession.turn == 'Owner' && data.gameSession.ownerName == user.username ? 'faded' : ''}`}>
-          <div className={`color off ${data.squareData[data.squareData.length - 1].color == 'var(--red)' ? 'grayed' : ''}`} style={{background: 'var(--red)'}}></div>
-          <div className={`color off ${data.squareData[data.squareData.length - 1].color == 'var(--orange)' ? 'grayed' : ''}`} style={{background: 'var(--orange)'}}></div>
-          <div className={`color off ${data.squareData[data.squareData.length - 1].color == 'var(--yellow)' ? 'grayed' : ''}`} style={{background: 'var(--yellow)'}}></div>
-          <div className={`color off ${data.squareData[data.squareData.length - 1].color == 'var(--green)' ? 'grayed' : ''}`} style={{background: 'var(--green)'}}></div>
-          <div className={`color off ${data.squareData[data.squareData.length - 1].color == 'var(--blue)' ? 'grayed' : ''}`} style={{background: 'var(--blue)'}}></div>
+        <div className={`colorRow ${turnOrder == 'Owner' && data.gameSession.ownerName == user.username ? 'faded' : ''}`}>
+          <div className={`color off ${opponentColor == 'var(--red)' ? 'grayed' : ''}`} style={{background: 'var(--red)'}}></div>
+          <div className={`color off ${opponentColor == 'var(--orange)' ? 'grayed' : ''}`} style={{background: 'var(--orange)'}}></div>
+          <div className={`color off ${opponentColor == 'var(--yellow)' ? 'grayed' : ''}`} style={{background: 'var(--yellow)'}}></div>
+          <div className={`color off ${opponentColor == 'var(--green)' ? 'grayed' : ''}`} style={{background: 'var(--green)'}}></div>
+          <div className={`color off ${opponentColor == 'var(--blue)' ? 'grayed' : ''}`} style={{background: 'var(--blue)'}}></div>
         </div> :
-        <div className={`colorRow ${data.gameSession.turn == 'Opponent' && data.gameSession.opponentName == user.username ? 'faded' : ''}`}>
-          <div className={`color off ${data.squareData[0].color == 'var(--red)' ? 'grayed' : ''}`} style={{background: 'var(--red)'}}></div>
-          <div className={`color off ${data.squareData[0].color == 'var(--orange)' ? 'grayed' : ''}`} style={{background: 'var(--orange)'}}></div>
-          <div className={`color off ${data.squareData[0].color == 'var(--yellow)' ? 'grayed' : ''}`} style={{background: 'var(--yellow)'}}></div>
-          <div className={`color off ${data.squareData[0].color == 'var(--green)' ? 'grayed' : ''}`} style={{background: 'var(--green)'}}></div>
-          <div className={`color off ${data.squareData[0].color == 'var(--blue)' ? 'grayed' : ''}`} style={{background: 'var(--blue)'}}></div>
+        <div className={`colorRow ${turnOrder == 'Opponent' && data.gameSession.opponentName == user.username ? 'faded' : ''}`}>
+          <div className={`color off ${ownerColor == 'var(--red)' ? 'grayed' : ''}`} style={{background: 'var(--red)'}}></div>
+          <div className={`color off ${ownerColor == 'var(--orange)' ? 'grayed' : ''}`} style={{background: 'var(--orange)'}}></div>
+          <div className={`color off ${ownerColor == 'var(--yellow)' ? 'grayed' : ''}`} style={{background: 'var(--yellow)'}}></div>
+          <div className={`color off ${ownerColor == 'var(--green)' ? 'grayed' : ''}`} style={{background: 'var(--green)'}}></div>
+          <div className={`color off ${ownerColor == 'var(--blue)' ? 'grayed' : ''}`} style={{background: 'var(--blue)'}}></div>
         </div>
         }
       </section>
-      <div className={`board ${user.username == data.gameSession.opponentName ? 'flip' : ''}`} style={{gridTemplateColumns: `repeat(${boardSize}, 1fr)`, background: !radarActive ? selectedColor : 'white'}}>
+      <div className={`board ${user.username == data.gameSession.opponentName ? 'flip' : ''}`} style={{gridTemplateColumns: `repeat(${boardSize}, 1fr)`, background: user.username == data.gameSession.ownerName ? `var(${paletteColors[5]})` : `var(${paletteColors[6]})`}}>
         {data.squareData.map((sq, index) => {
           return (
             <div className={`square ${data.squareGrowth[index] == false ? '' : data.squareGrowth[index]}`} key={sq.index} style={{background: colorState[index].fakeColor, border: grid ? '1px solid black' : ''}}></div>
@@ -538,19 +648,19 @@ console.log(data.gameSession.boardData)
           <button className={`predictButton ${radarActive == true ? 'active' : ''}`} onClick={handlePredict}>Radar</button>
         </div> */}
         {user.username == data.gameSession.ownerName ? 
-        <div className={`colorRow ${data.gameSession.turn == 'Owner' && data.gameSession.ownerName == user.username ? '' : 'faded'}`}>
-          <div className={`color ${selectedColor === 'var(--red)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--red)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--red)') : e.preventDefault()} style={{ background: 'var(--red)' }}></div>
-          <div className={`color ${selectedColor === 'var(--orange)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--orange)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--orange)') : e.preventDefault()} style={{ background: 'var(--orange)' }}></div>
-          <div className={`color ${selectedColor === 'var(--yellow)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--yellow)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--yellow)') : e.preventDefault()} style={{ background: 'var(--yellow)' }}></div>
-          <div className={`color ${selectedColor === 'var(--green)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--green)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--green)') : e.preventDefault()} style={{ background: 'var(--green)' }}></div>
-          <div className={`color ${selectedColor === 'var(--blue)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--blue)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--blue)') : e.preventDefault()} style={{ background: 'var(--blue)' }}></div>
+        <div className={`colorRow ${turnOrder == 'Owner' && data.gameSession.ownerName == user.username ? '' : 'faded'}`}>
+          <div className={`color ${ownerColor === 'var(--red)' ? 'grayed' : ''}`} onClick={!complete || !fetcher.state ==  'submitting' ? () => colorChange('var(--red)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--red)') : e.preventDefault()} style={{ background: 'var(--red)' }}></div>
+          <div className={`color ${ownerColor === 'var(--orange)' ? 'grayed' : ''}`} onClick={!complete || !fetcher.state ==  'submitting' ? () => colorChange('var(--orange)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--orange)') : e.preventDefault()} style={{ background: 'var(--orange)' }}></div>
+          <div className={`color ${ownerColor === 'var(--yellow)' ? 'grayed' : ''}`} onClick={!complete || !fetcher.state ==  'submitting' ? () => colorChange('var(--yellow)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--yellow)') : e.preventDefault()} style={{ background: 'var(--yellow)' }}></div>
+          <div className={`color ${ownerColor === 'var(--green)' ? 'grayed' : ''}`} onClick={!complete || !fetcher.state ==  'submitting' ? () => colorChange('var(--green)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--green)') : e.preventDefault()} style={{ background: 'var(--green)' }}></div>
+          <div className={`color ${ownerColor === 'var(--blue)' ? 'grayed' : ''}`} onClick={!complete || !fetcher.state ==  'submitting' ? () => colorChange('var(--blue)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--blue)') : e.preventDefault()} style={{ background: 'var(--blue)' }}></div>
         </div> :
-        <div className={`colorRow ${data.gameSession.turn == 'Opponent' && data.gameSession.opponentName == user.username ? '' : 'faded'}`}>
-          <div className={`color ${selectedColor === 'var(--red)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--red)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--red)') : e.preventDefault()} style={{ background: 'var(--red)' }}></div>
-          <div className={`color ${selectedColor === 'var(--orange)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--orange)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--orange)') : e.preventDefault()} style={{ background: 'var(--orange)' }}></div>
-          <div className={`color ${selectedColor === 'var(--yellow)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--yellow)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--yellow)') : e.preventDefault()} style={{ background: 'var(--yellow)' }}></div>
-          <div className={`color ${selectedColor === 'var(--green)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--green)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--green)') : e.preventDefault()} style={{ background: 'var(--green)' }}></div>
-          <div className={`color ${selectedColor === 'var(--blue)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--blue)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--blue)') : e.preventDefault()} style={{ background: 'var(--blue)' }}></div>
+        <div className={`colorRow ${turnOrder == 'Opponent' && data.gameSession.opponentName == user.username ? '' : 'faded'}`}>
+          <div className={`color ${opponentColor === 'var(--red)' ? 'grayed' : ''}`} onClick={!complete || !fetcher.state ==  'submitting' ? () => colorChange('var(--red)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--red)') : e.preventDefault()} style={{ background: 'var(--red)' }}></div>
+          <div className={`color ${opponentColor === 'var(--orange)' ? 'grayed' : ''}`} onClick={!complete || !fetcher.state ==  'submitting' ? () => colorChange('var(--orange)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--orange)') : e.preventDefault()} style={{ background: 'var(--orange)' }}></div>
+          <div className={`color ${opponentColor === 'var(--yellow)' ? 'grayed' : ''}`} onClick={!complete || !fetcher.state ==  'submitting' ? () => colorChange('var(--yellow)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--yellow)') : e.preventDefault()} style={{ background: 'var(--yellow)' }}></div>
+          <div className={`color ${opponentColor === 'var(--green)' ? 'grayed' : ''}`} onClick={!complete || !fetcher.state ==  'submitting' ? () => colorChange('var(--green)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--green)') : e.preventDefault()} style={{ background: 'var(--green)' }}></div>
+          <div className={`color ${opponentColor === 'var(--blue)' ? 'grayed' : ''}`} onClick={!complete || !fetcher.state ==  'submitting' ? () => colorChange('var(--blue)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--blue)') : e.preventDefault()} style={{ background: 'var(--blue)' }}></div>
         </div>
         }
        

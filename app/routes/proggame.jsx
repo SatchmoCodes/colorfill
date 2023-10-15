@@ -16,6 +16,8 @@ import invariant from "tiny-invariant";
 import { useFetcher } from "@remix-run/react";
 import { getBestScore, getBestBoardScore } from '../models/score.server';
 
+import { useHydrated } from "remix-utils"
+
 
 export const loader = async ({ params, request }) => {
     const userId = await requireUserId(request);
@@ -123,6 +125,7 @@ function App() {
   const user = useUser()
   const fetcher = useFetcher()
   const data = useLoaderData()
+  const isHydrated = useHydrated()
 
   const [count, setCount] = useState(0) //track # of turns
   const [colorState, setColorState] = useState(data.squareData[hole]) //tracks color of entire board
@@ -523,7 +526,7 @@ function App() {
         </fetcher.Form>
         <button type='submit' onClick={handleReset}>Retry</button>
     </dialog>
-    <div className='gameContainer'>
+    <div className={`gameContainer ${isHydrated ? '' : 'animate-appear'}`}>
       <div className='settingsIcon' onClick={handleOpen}>{isOpen ? 'X' : 'O'}</div>
       <section className='left'>
         <div className='holeInfo'>
