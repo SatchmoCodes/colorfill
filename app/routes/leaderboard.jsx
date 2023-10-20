@@ -10,50 +10,55 @@ import {prisma} from '~/db.server'
 import { requireUserId } from "~/session.server";
 import leaderboardstyles from '~/styles/leaderboard.css'
 import  { getBestScore, getScoreList, getQueryResult, getUserQueryResult, getAllScores, highScores } from "../models/score.server";
+import { getAllUsers, getUserNameById } from "../models/user.server";
+import { getPVPUsers, groupPVPGames, groupPVPLosses, groupPVPWins } from "../models/pvpscores.server";
 
-let previousMode = 'Free Play'
 
 
 export const loader = async ({ request }) => {
     const userId = await requireUserId(request)
     const url = new URL(request.url)
+    const user = await getUserNameById({id: userId})
     console.log(url.searchParams)
-    let scoreListItems = await getQueryResult({ gamemode: 'Free Play', size: 'Medium', order: 'asc' })
+    let scoreListItems
     if (url.searchParams == '') {
-        
+        scoreListItems = await getQueryResult({ gamemode: 'Free Play', size: 'Medium', order: 'asc' })
     }
     else {
-        
         let size = url.searchParams.get('size')
         let order = 'asc'
         const gamemode = url.searchParams.get('gamemode')
-        console.log(gamemode)
-        console.log(previousMode)
-        if (gamemode != previousMode) {
-            console.log('hi')
-            previousMode = gamemode
-            if (gamemode == 'Free Play') {
-                size = 'Medium'
-            }
-            else if (gamemode == 'Progressive') {
-                size = '10'
-            }
-        }
         const username = url.searchParams.get('username')
-        if (username) {
-            scoreListItems = await getUserQueryResult({ username, gamemode, size, order})
+        if (size == null) {
+            size = 'Medium'
+        }
+        if (gamemode != 'PVP') {
+            if (username) {
+                scoreListItems = await getUserQueryResult({ username, gamemode, size, order})
+            }
+            else {
+                scoreListItems = await getQueryResult({ gamemode, size, order })
+            }
         }
         else {
+            const pvpOption = url.searchParams.get('pvpOption')
             scoreListItems = await getQueryResult({ gamemode, size, order })
         }
+        
     }
 
+    console.log(user)
     const bestSmallScore = await getBestScore({ userId, size: 'Small', gamemode: 'Free Play'  })
     const bestMediumScore = await getBestScore({ userId, size: 'Medium', gamemode: 'Free Play' })
     const bestLargeScore = await getBestScore({ userId, size: 'Large', gamemode: 'Free Play'  })
     const bestProgScore = await getBestScore({ userId, size: '10', gamemode: 'Progressive'  })
+    const pvpPlayerList =  await getPVPUsers()
     const totalScores = await getAllScores({ userId })
-    return json({ totalScores, scoreListItems, bestSmallScore, bestMediumScore, bestLargeScore, bestProgScore })
+    const Wins = await groupPVPWins()
+    const Losses = await groupPVPLosses()
+    const Games = await groupPVPGames()
+    let player
+    return json({ totalScores, scoreListItems, bestSmallScore, bestMediumScore, bestLargeScore, bestProgScore, Wins, Losses, Games })
 };
 
 // export const action = async ({ request }) => {
@@ -68,16 +73,16 @@ export const loader = async ({ request }) => {
 //     return json({ queryListItems })
 // }
 
-let oldMode = 'Free Play'
-let size
-
 const leaderboard = () => {
     const data = useLoaderData()
     const user = useUser()
     const submit = useSubmit()
+    console.log(data.Games)
+    console.log(data.Wins)
 
     const [gamemode, setGamemode] = useState('Free Play')
     const [queryData, setQueryData] = useState(data.scoreListItems)
+    const [formChanged, setFormChanged] = useState(false)
 
     function handleRedirect(event) {
         if (event.target.dataset.gamemode == 'Free Play') {
@@ -91,9 +96,13 @@ const leaderboard = () => {
     function handleChange(event) {
         console.log(event.currentTarget)
         event.target.name == 'gamemode' && setGamemode(event.target.value)
-        submit(event.currentTarget)
-      
+        setFormChanged(true)
     }
+
+    useEffect(() => {
+        submit(document.querySelector('.queryInfo'), {method: 'GET'})
+        setFormChanged(false)
+    }, [formChanged])
 
     useEffect(() => {
         setQueryData(data.scoreListItems)
@@ -122,10 +131,19 @@ const leaderboard = () => {
                 <h2>User</h2>
                 <h2>Gamemode</h2>
                 <h2 className="score">Score</h2>
-                <h2>Board Size</h2>
-                <h2>Board Code</h2>
+                {gamemode != 'PVP' ? 
+                <>
+                  <h2>Board Size</h2>
+                  <h2>Board Code</h2>
+                </> : 
+                <>
+                  <h2>Win Rate</h2>
+                  <h2>Games Played</h2>
+                </>
+                }
+              
             </div>
-            <Form method='get' onChange={handleChange}>
+            <Form className="queryInfo" method='get' onChange={handleChange}>
                 <div className="row filters">
                     <div>
 
@@ -151,6 +169,10 @@ const leaderboard = () => {
                         </select>}
                         {gamemode == 'Progressive' && <select className="size" name="size" defaultValue={'10'}>
                             <option >10</option>
+                        </select>}
+                        {gamemode == 'PVP' && <select className="pvpOption" name="pvpOption" defaultValue={'winRate'}>
+                            <option>Win Rate</option>
+                            <option >Games Played</option>
                         </select>}
                     </div>
                     <div>

@@ -1,6 +1,6 @@
 import { prisma } from "~/db.server";
 
-export function createGameSession({ownerName, opponentName, boardId, boardSize, boardData, gameState, boardState, squareGrowth, boardType, gameType, turn, ownerScore, opponentScore, turnLog}) {
+export function createGameSession({ownerName, opponentName, boardId, boardSize, boardData, gameState, boardState, squareGrowth, boardType, gameType, turn, ownerScore, opponentScore, winner, loser, turnLog}) {
     return prisma.gameSession.create({
         data: {
             gameState,
@@ -11,6 +11,8 @@ export function createGameSession({ownerName, opponentName, boardId, boardSize, 
             turn,
             ownerScore,
             opponentScore,
+            winner,
+            loser,
             turnLog,
             owner: {
                 connect: {
@@ -52,10 +54,9 @@ export function getRecentGameSession({ gameState }) {
 export function getGameSessionById({ id }) {
     return prisma.gameSession.findUnique({
         where: {id},
-        select: { id: true, gameState: true, boardType: true, boardSize: true, boardState: true, squareGrowth: true, boardData: true, ownerName: true, opponentName: true, ownerScore: true, opponentScore: true, gameType: true, turn: true},
+        select: { id: true, gameState: true, boardType: true, boardSize: true, boardState: true, squareGrowth: true, boardData: true, ownerName: true, opponentName: true, ownerScore: true, opponentScore: true, gameType: true, turn: true, turnLog: true, winner: true, loser: true, updatedAt: true},
     })
 }
-
 
 export function findExistingSession({ ownerName }) {
     return prisma.gameSession.findFirst({
@@ -63,11 +64,22 @@ export function findExistingSession({ ownerName }) {
     })
 }
 
-export function updateUserInSession({ id, opponentName}) {
+export function updateUserInSession({ id, opponentName, gameState}) {
     return prisma.gameSession.update({
         where: { id },
         data: {
-            opponentName: opponentName
+            opponentName: opponentName,
+            gameState: gameState
+        }
+    })
+}
+
+export function updateUserLeavingSession({ id, gameState, opponentName}) {
+    return prisma.gameSession.update({
+        where: { id},
+        data: {
+            opponentName: opponentName,
+            gameState: gameState
         }
     })
 }
@@ -81,13 +93,44 @@ export function updateSessionState({ id, gameState }) {
     })
 }
 
-export function updateBoardStateOwner({ id, boardState, squareGrowth, turn, ownerScore}) {
+export function updateFinalSessionState({ id, winner, loser}) {
+    return prisma.gameSession.update({
+        where: { id },
+        data: {
+            winner: winner,
+            loser: loser,
+        }
+    })
+}
+
+export function closeSession({ id }) {
+    return prisma.gameSession.update({
+        where: { id },
+        data: {
+            gameSession: 'Finished'
+        }
+    })
+}
+
+// export function updateGameLeaver({ id, gameState, leaver}) {
+//     return prisma.gameSession.update({
+//         where: { id },
+//         data: {
+//             gameState: gameState,
+//             leaver: leaver
+//         }
+//     })
+// }
+
+export function updateBoardStateOwner({ id, boardState, squareGrowth, turn, turnLog, ownerScore}) {
     return prisma.gameSession.update({
         where: {id },
         data: {
             boardState: boardState,
             squareGrowth: squareGrowth,
             turn: turn,
+            turnLog: turnLog,
+            updatedAt: new Date(),
             ownerScore: {
                 increment: ownerScore
             }
@@ -95,13 +138,15 @@ export function updateBoardStateOwner({ id, boardState, squareGrowth, turn, owne
     })
 }
 
-export function updateBoardStateOpponent({ id, boardState, squareGrowth, turn, opponentScore}) {
+export function updateBoardStateOpponent({ id, boardState, squareGrowth, turn, turnLog, opponentScore}) {
     return prisma.gameSession.update({
         where: {id },
         data: {
             boardState: boardState,
             squareGrowth: squareGrowth,
             turn: turn,
+            turnLog: turnLog,
+            updatedAt: new Date(), 
             opponentScore: {
                 increment: opponentScore
             }
