@@ -6,9 +6,9 @@ import generateBoard from './SquareGenerator'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { Link, useNavigation } from "@remix-run/react";
-import { faCheckSquare, faCoffee, faGear } from '@fortawesome/free-solid-svg-icons'
+import { faCheckSquare, faCoffee, faGear, faX } from '@fortawesome/free-solid-svg-icons'
 
-library.add(faCheckSquare, faCoffee, faGear)
+library.add(faCheckSquare, faCoffee, faGear, faX)
 
 import { useUser } from "~/utils";
 import { requireUserId } from "~/session.server";
@@ -22,6 +22,8 @@ import { useFetcher } from "@remix-run/react";
 import { getBestScore, getBestBoardScore } from '../models/score.server';
 
 import { useBeforeUnload } from '@remix-run/react';
+
+import { Audio, TailSpin } from 'react-loader-spinner'
 
 import { useHydrated } from "remix-utils"
 
@@ -146,6 +148,8 @@ let turnLogJSON
 let numberCaptured = 0
 let hasRun = false
 
+let prevHighScore = null
+
 function App() {
   const user = useUser()
   const fetcher = useFetcher()
@@ -174,6 +178,8 @@ function App() {
   const [oppTurnLog, setOppTurnLog] = useState(null)
 
   const [boardId, setBoardId] = useState(data.board.id)
+
+  const [newBoard, setNewBoard] = useState(false)
 
   const isHydrated = useHydrated()
 
@@ -216,11 +222,14 @@ function App() {
     data.squareData = JSON.parse(JSON.stringify(tempSquareArr))
     setColorState(tempSquareArr)
     localStorage.getItem('grid') == 'true' && setGrid(true)
+    console.log('set previous high score')
+    window.history.replaceState(null, '/game', ['/playmenu'])
     hasRun = true
     }
     if (data.bestGlobalScore) {
       console.log(data.bestGlobalScore.turnlog)
       setOppTurnLog(JSON.parse(data.bestGlobalScore.turnlog))
+      prevHighScore = data.bestGlobalScore.score
     }
     for (let i = 0; i < 5; i++) {
       if (localStorage.getItem(paletteColors[i])) {
@@ -374,7 +383,6 @@ function App() {
     }
   }
 
-
   function handleRetry() {
     console.log('hi')
     turnCount = 0
@@ -417,6 +425,7 @@ function App() {
     setComplete(false)
     turnLogArr = []
     setTurnLog(turnLogArr)
+    prevHighScore = data.bestGlobalScore.score
     document.querySelector('.endDialog').close()
   }
 
@@ -489,223 +498,246 @@ function App() {
     x != null && document.querySelectorAll('.row')[x.length - 1].scrollIntoView({ behavior: "smooth", block: "end", inline: "nearest" });
   }, [isOpen])
 
-  console.log(isHydrated)
 
   return (
-    <div className={`gameContainer ${isHydrated ? '' : 'animate-appear'}`}>
-      <div className='settingsIcon' onClick={handleOpen}>{isOpen ? 'X' : 'O'}</div>
-      <dialog className='scoreDialog'>
-        <fetcher.Form className='scoreData' method='post'>
-            <input type='hidden' value={turnCount} name='score'></input>
-            <input type='hidden' value={boardSize} name='boardSize'></input>
-            <input type='hidden' value={boardId} name='boardId'></input>
-            <input type='hidden' value={newBoardSize} name='newBoardSize'></input>
-            <input type='hidden' value={turnLogJSON} name='turnLog'></input>
-            <input type='hidden' value={user.username} name='username'></input>
-            <input type='hidden' value={'submit'} name='submitType'></input>
-          </fetcher.Form>
-      </dialog>
-      <dialog className='endDialog'>
-        <fetcher.Form className='formData' reloadDocument method='post' action='/game'>
-          {fetcher.state === 'submitting' ? 
-          <div>
-            <h2>Submitting data</h2>
-          </div> : 
-          <div>
-            <h2>You completed the board in {count} turns!</h2>
-            <input type='hidden' value={newBoardSize} name='newBoardSize'></input>
-            <input type='hidden' value={'newBoard'} name='submitType'></input>
-            <button type='submit'>New Board</button>
-          </div>}
-        </fetcher.Form>
-        {fetcher.state !== 'submitting' && <button type='submit' onClick={handleRetry}>Retry</button>}
-      </dialog>
-    <section className={`left ${isOpen ? 'hide' : ''}`}>
-      <h1>{data.bestGlobalScore ? `${count} / ${data.bestGlobalScore.score}` : count}</h1>
-      <div className='board' style={{gridTemplateColumns: `repeat(${boardSize}, 1fr)`, background: !radarActive ? selectedColor : 'white'}}>
-        {data.squareData.map((sq, index) => {
-          return (
-            <div className={`square ${data.squareGrowth[index] == false ? '' : data.squareGrowth[index]} ${isHydrated ? 'captureFade' : ''}`} key={sq.index} style={{background: colorState[index].fakeColor, border: grid ? '1px solid black' : ''}}></div>
-          )
-        })}
-      </div>
-      <section className='buttonSection'>
-        <div className='extraRow'>
-          <div className='resetButton'>
-            <fetcher.Form reloadDocument method='post' action='/game'>
-              <input type='hidden' value='newBoard' name='submitType'></input>
+    <div className='bigWrap'>
+      {newBoard == true && <TailSpin  height="80" width="80"radius="9"color="green"ariaLabel="loading" wrapperStyle wrapperClass='newBoardLoading'></TailSpin>}
+      <div className={`gameContainer ${isHydrated ? '' : 'animate-appear'} ${newBoard ? 'fadeOut' : ''} `}>
+        {/* <div className='settingsIcon' onClick={handleOpen}>{isOpen ? 'X' : 'O'}</div> */}
+        {isHydrated && <FontAwesomeIcon className='settingsIcon' icon={!isOpen ? "fa-solid fa-gear" : "fa-solid fa-x"} onClick={handleOpen}/>}
+        <dialog className='scoreDialog'>
+          <fetcher.Form className='scoreData' method='post'>
+              <input type='hidden' value={turnCount} name='score'></input>
+              <input type='hidden' value={boardSize} name='boardSize'></input>
+              <input type='hidden' value={boardId} name='boardId'></input>
               <input type='hidden' value={newBoardSize} name='newBoardSize'></input>
-              <button type='submit'>New Board</button>
+              <input type='hidden' value={turnLogJSON} name='turnLog'></input>
+              <input type='hidden' value={user.username} name='username'></input>
+              <input type='hidden' value={'submit'} name='submitType'></input>
             </fetcher.Form>
+        </dialog>
+        <dialog className='endDialog'>
+          <fetcher.Form className='formData' reloadDocument method='post' action='/game'>
+            {fetcher.state === 'submitting' ? 
+            <div>
+              <Audio height="80" width="80"radius="9"color="green"ariaLabel="loading" wrapperStyle wrapperClass></Audio>
+            </div> : 
+            <div>
+              {prevHighScore != null ? 
+              <>
+                <h2>{count < prevHighScore ? `You beat the previous high score in ${count} turns!` : `You did not beat the previous record!`}</h2>
+                <input type='hidden' value={newBoardSize} name='newBoardSize'></input>
+                <input type='hidden' value={'newBoard'} name='submitType'></input>
+                <button type='submit' onClick={()=> setNewBoard(true)}>New Board</button>
+              </> : 
+              <>
+                <h2>You completed the board in {count} turns!</h2>
+                <input type='hidden' value={newBoardSize} name='newBoardSize'></input>
+                <input type='hidden' value={'newBoard'} name='submitType'></input>
+                <button type='submit' onClick={()=> setNewBoard(true)}>New Board</button>
+              </>}
+            </div>}
+          </fetcher.Form>
+          {fetcher.state !== 'submitting' && <button type='submit' onClick={handleRetry}>Retry</button>}
+        </dialog>
+      <section className={`left ${isOpen ? 'hide' : ''}`}>
+        <h1>{data.bestGlobalScore ? `${count} / ${prevHighScore != null ? prevHighScore : count}` : count}</h1>
+        <div className='board' style={{gridTemplateColumns: `repeat(${boardSize}, 1fr)`, background: !radarActive ? selectedColor : 'white'}}>
+          {data.squareData.map((sq, index) => {
+            return (
+              <div className={`square ${data.squareGrowth[index] == false ? '' : data.squareGrowth[index]} ${isHydrated ? 'captureFade' : ''}`} key={sq.index} style={{background: colorState[index].fakeColor, border: grid ? '1px solid black' : ''}}></div>
+            )
+          })}
+        </div>
+        <section className='buttonSection'>
+          <div className='extraRow'>
+            <div className='resetButton'>
+              <fetcher.Form reloadDocument method='post' action='/game'>
+                <input type='hidden' value='newBoard' name='submitType'></input>
+                <input type='hidden' value={newBoardSize} name='newBoardSize'></input>
+                <button type='submit' onClick={()=> setNewBoard(true)}>New Board</button>
+              </fetcher.Form>
+            </div>
+            {/* <div className={`saveButton ${saveActive === true ? 'active' : ''}`} onClick={handleSave}>
+              <h3>Save</h3>
+            </div> */}
+            <button className='retryButton' onClick={handleRetry}>Retry Board</button>
+            <button className={`predictButton ${radarActive == true ? 'active' : ''}`} onClick={handlePredict}>Radar</button>
           </div>
-          {/* <div className={`saveButton ${saveActive === true ? 'active' : ''}`} onClick={handleSave}>
-            <h3>Save</h3>
-          </div> */}
-          <button className='retryButton' onClick={handleRetry}>Retry Board</button>
-          <button className={`predictButton ${radarActive == true ? 'active' : ''}`} onClick={handlePredict}>Radar</button>
-        </div>
-        <div className='colorRow'>
-          <div className={`color ${selectedColor === 'var(--red)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--red)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--red)') : e.preventDefault()} style={{ background: 'var(--red)' }}></div>
-          <div className={`color ${selectedColor === 'var(--orange)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--orange)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--orange)') : e.preventDefault()} style={{ background: 'var(--orange)' }}></div>
-          <div className={`color ${selectedColor === 'var(--yellow)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--yellow)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--yellow)') : e.preventDefault()} style={{ background: 'var(--yellow)' }}></div>
-          <div className={`color ${selectedColor === 'var(--green)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--green)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--green)') : e.preventDefault()} style={{ background: 'var(--green)' }}></div>
-          <div className={`color ${selectedColor === 'var(--blue)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--blue)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--blue)') : e.preventDefault()} style={{ background: 'var(--blue)' }}></div>
-        </div>
+          <div className='colorRow'>
+            <div className={`color ${selectedColor === 'var(--red)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--red)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--red)') : e.preventDefault()} style={{ background: 'var(--red)' }}></div>
+            <div className={`color ${selectedColor === 'var(--orange)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--orange)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--orange)') : e.preventDefault()} style={{ background: 'var(--orange)' }}></div>
+            <div className={`color ${selectedColor === 'var(--yellow)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--yellow)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--yellow)') : e.preventDefault()} style={{ background: 'var(--yellow)' }}></div>
+            <div className={`color ${selectedColor === 'var(--green)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--green)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--green)') : e.preventDefault()} style={{ background: 'var(--green)' }}></div>
+            <div className={`color ${selectedColor === 'var(--blue)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--blue)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--blue)') : e.preventDefault()} style={{ background: 'var(--blue)' }}></div>
+          </div>
+        </section>
       </section>
-    </section>
-    <section className='right'>
-      <div className='scoreboard'>
-      <h2>{data.bestGlobalScore ? `Score to Beat: ${data.bestGlobalScore.score}` : `High Score: ${highScore}`}</h2>
-      <h3>Squares Remaining</h3>
-        <div className='squareRow'>
-          <div className='fakeSquare' style={{background: 'var(--red)'}}>
-            <h4>{squareCounter[0].count}</h4>
-          </div>
-          <div className='fakeSquare' style={{background: 'var(--orange)'}}>
-            <h4>{squareCounter[1].count}</h4>
-          </div>
-          <div className='fakeSquare' style={{background: 'var(--yellow)'}}>
-            <h4>{squareCounter[2].count}</h4>
-          </div>
-          <div className='fakeSquare'  style={{background: 'var(--green)'}}>
-            <h4>{squareCounter[3].count}</h4>
-          </div>
-          <div className='fakeSquare'  style={{background: 'var(--blue)'}}>
-            <h4>{squareCounter[4].count}</h4>
-          </div>
-        </div>
-      </div>
-      <div className={`options ${isOpen ? 'show' : ''}`}>
-        <div className='optionWrap'>
-          <div className='boardSize'>
-            <h2>Board Size</h2>
-            <div className='boardOptions'>
-              <div className='option'>
-                <input id='small' type='radio' name='size' checked={newBoardSize == '10'} value={10} onChange={handleSizeChange}/>
-                <label htmlFor='small'>Small</label>
-              </div>
-              <div className='option'>
-                <input id='medium' type='radio' name='size' checked={newBoardSize == '15'} value={15} onChange={handleSizeChange}/>
-                <label htmlFor='medium'>Medium</label>
-              </div>
-              <div className='option'>
-                <input id='large' type='radio' name='size' checked={newBoardSize == '20'} value={20} onChange={handleSizeChange}/>
-                <label htmlFor='large'>Large</label>
-              </div>
-              {/* <div className='customOption'>
-                <label htmlFor='customInput'>Custom</label>
-                <input id='customInput' type='text' name='size' value={customBoardSize} placeholder='5-40' onChange={handleCustomBoardSize}/>
-              </div> */}
+      <section className='right'>
+        <div className='scoreboard'>
+        <h2>{prevHighScore != null ? `Score to Beat: ${prevHighScore}` : `High Score: ${highScore}`}</h2>
+        <h3>Squares Remaining</h3>
+          <div className='squareRow'>
+            <div className='fakeSquare' style={{background: 'var(--red)'}}>
+              <h4>{squareCounter[0].count}</h4>
+            </div>
+            <div className='fakeSquare' style={{background: 'var(--orange)'}}>
+              <h4>{squareCounter[1].count}</h4>
+            </div>
+            <div className='fakeSquare' style={{background: 'var(--yellow)'}}>
+              <h4>{squareCounter[2].count}</h4>
+            </div>
+            <div className='fakeSquare'  style={{background: 'var(--green)'}}>
+              <h4>{squareCounter[3].count}</h4>
+            </div>
+            <div className='fakeSquare'  style={{background: 'var(--blue)'}}>
+              <h4>{squareCounter[4].count}</h4>
             </div>
           </div>
-          <div className='gridView'>
-            <h2>Grid View</h2>
-            <input id='grid' type='checkbox' value='1px solid black' checked={grid} name='grid' onChange={handleGridToggle}></input>
-            <label htmlFor='grid'>Grid</label>
-          </div>
         </div>
-        <div className='turnLog'>
-          <h3>Turn Log</h3>
-          <div className='row'>
-              <h3>Turn</h3>
-              <h3>Captured</h3>
-          </div>
-          {data.bestGlobalScore && <div className='row'>
-              <h3></h3>
-              <h3>You</h3>
-              <h3>{data.bestGlobalScore.userName}</h3>
-          </div>}
-          <div className='turnLogBox'>
-            {turnLog && turnLog.map((row, index) => {
-              return (
-                <div className='row'>
-                <h3>{index + 1}</h3>
-                <div className='turnInfo'>
-                  <div className='fakeSquare' style={{background: turnLog[index].color}}>
-                    <h4>{turnLog[index].captured}</h4>
-                  </div>
+        <div className={`options ${isOpen ? 'show' : ''}`}>
+          <div className='optionWrap'>
+            <div className='boardSize'>
+              <h2>Board Size</h2>
+              <div className='boardOptions'>
+                <div className='option'>
+                  <input id='small' type='radio' name='size' checked={newBoardSize == '10'} value={10} onChange={handleSizeChange}/>
+                  <label htmlFor='small'>Small</label>
                 </div>
-                {oppTurnLog != null && <div className='turnInfo'>
-                  <div className='fakeSquare' style={oppTurnLog.turnLog[index] && {background: oppTurnLog.turnLog[index].color}}>
-                    <h4>{oppTurnLog.turnLog[index] && oppTurnLog.turnLog[index].captured}</h4>
-                  </div>
-                  {/* <div className='fakeSquare' style={data.bestGlobalScore && {background: JSON.parse(data.bestGlobalScore.turnlog.turnLog[index]).color}}>
-                    <h4>{data.bestGlobalScore && JSON.parse(data.bestGlobalScore.turnlog.turnLog[index]).captured}</h4>
-                  </div> */}
-                </div>}
+                <div className='option'>
+                  <input id='medium' type='radio' name='size' checked={newBoardSize == '15'} value={15} onChange={handleSizeChange}/>
+                  <label htmlFor='medium'>Medium</label>
+                </div>
+                <div className='option'>
+                  <input id='large' type='radio' name='size' checked={newBoardSize == '20'} value={20} onChange={handleSizeChange}/>
+                  <label htmlFor='large'>Large</label>
+                </div>
+                {/* <div className='customOption'>
+                  <label htmlFor='customInput'>Custom</label>
+                  <input id='customInput' type='text' name='size' value={customBoardSize} placeholder='5-40' onChange={handleCustomBoardSize}/>
+                </div> */}
               </div>
-              )
-            })}
-            <div className='anchor'></div>
+            </div>
+            <div className='gridView'>
+              <h2>Grid View</h2>
+              <input id='grid' type='checkbox' value='1px solid black' checked={grid} name='grid' onChange={handleGridToggle}></input>
+              <label htmlFor='grid'>Grid</label>
+            </div>
+          </div>
+          <div className='turnLog'>
+            <h3>Turn Log</h3>
+            <div className='row'>
+                <h3>Turn</h3>
+                <h3>Captured</h3>
+            </div>
+            {prevHighScore != null && <div className='row'>
+                <h3></h3>
+                <h3>You</h3>
+                <h3>{data.bestGlobalScore.userName}</h3>
+            </div>}
+            <div className='turnLogBox'>
+              {turnLog && turnLog.map((row, index) => {
+                return (
+                  <div className='row'>
+                  <h3>{index + 1}</h3>
+                  <div className='turnInfo'>
+                    <div className='fakeSquare' style={{background: turnLog[index].color}}>
+                      <h4>{turnLog[index].captured}</h4>
+                    </div>
+                  </div>
+                  {prevHighScore != null && <div className='turnInfo'>
+                    <div className='fakeSquare' style={oppTurnLog.turnLog[index] && {background: oppTurnLog.turnLog[index].color}}>
+                      <h4>{oppTurnLog.turnLog[index] && oppTurnLog.turnLog[index].captured}</h4>
+                    </div>
+                    {/* <div className='fakeSquare' style={data.bestGlobalScore && {background: JSON.parse(data.bestGlobalScore.turnlog.turnLog[index]).color}}>
+                      <h4>{data.bestGlobalScore && JSON.parse(data.bestGlobalScore.turnlog.turnLog[index]).captured}</h4>
+                    </div> */}
+                  </div>}
+                </div>
+                )
+              })}
+              <div className='anchor'></div>
+            </div>
+          </div>
+          <h2 className='colorOptions'>Color Options</h2>
+          <div className='colorPalette'>
+            <div className='colorHolder selectedPalette'>
+              <div className='palColor' style={{background: 'var(--red)'}}></div>
+              <div className='palColor' style={{background: 'var(--orange)'}}></div>
+              <div className='palColor' style={{background: 'var(--yellow)'}}></div>
+              <div className='palColor' style={{background: 'var(--green)'}}></div>
+              <div className='palColor' style={{background: 'var(--blue)'}}></div>
+            </div>
+            <div className='colorHolder' onClick={handlePaletteSwap}>
+              <div className='palColor' style={{background: 'hsl(0, 100%, 40%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(22, 100%, 50%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(60, 100%, 50%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(130, 100%, 15%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(242, 69%, 49%)'}}></div>
+              <div className='palColor hide' style={{background: 'white'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(31, 31, 31)'}}></div>
+            </div>
+            <div className='colorHolder' onClick={handlePaletteSwap}>
+              <div className='palColor' style={{background: 'hsl(33, 90.8%, 12.7%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(33, 89.8%, 26.9%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(25, 95.4%, 42.7%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(221, 69.2%, 43.3%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(213, 68.6%, 90%)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(133, 7, 7)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(8, 68, 17)'}}></div>
+            </div>
+            <div className='colorHolder' onClick={handlePaletteSwap}>
+              <div className='palColor' style={{background: 'hsl(358,83%,35%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(2,72%,51%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(211,88%,32%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(0,0%,39%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(0,0%,14%)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(143, 4, 156)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(255, 235, 15)'}}></div>
+            </div>
+            <div className='colorHolder' onClick={handlePaletteSwap}>
+              <div className='palColor' style={{background: 'hsl(164,95%,43%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(240,100%,98%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(43,100%,70%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(197,19%,36%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(200,43%,7%)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(5, 73, 157)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(197, 42, 11)'}}></div>
+            </div>
+            <div className='colorHolder' onClick={handlePaletteSwap}>
+              <div className='palColor' style={{background: 'hsl(7,55%,30%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(6,56%,49%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(24,38%,87%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(183,66%,28%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(180,20%,20%)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(228, 174, 13)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(110, 13, 228)'}}></div>
+            </div>
+            <div className='colorHolder' onClick={handlePaletteSwap}>
+              <div className='palColor' style={{background: 'hsl(306, 81%, 21%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(327,100%,44%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(211,88%,32%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(0,0%,39%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(0,0%,14%)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(23, 190, 8)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(190, 20, 8)'}}></div>
+            </div>
+            <div className='colorHolder' onClick={handlePaletteSwap}>
+              <div className='palColor' style={{background: 'hsl(83, 45%, 18%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(59,70%,30%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(55, 47%, 78%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(48,99%,59%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(27, 55%, 33%)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(31, 194, 215)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(204, 72, 16)'}}></div>
+            </div>
+          </div>
+          <div className='link'>
+            <Link to='/'>Return to Main Menu</Link>
           </div>
         </div>
-        <h2 className='colorOptions'>Color Options</h2>
-        <div className='colorPalette'>
-          <div className='colorHolder selectedPalette'>
-            <div className='palColor' style={{background: 'var(--red)'}}></div>
-            <div className='palColor' style={{background: 'var(--orange)'}}></div>
-            <div className='palColor' style={{background: 'var(--yellow)'}}></div>
-            <div className='palColor' style={{background: 'var(--green)'}}></div>
-            <div className='palColor' style={{background: 'var(--blue)'}}>
-            <div className='palColor hide' style={{background: 'white'}}></div>
-            <div className='palColor hide' style={{background: 'black'}}></div>
-          </div>
-          </div>
-          <div className='colorHolder' onClick={handlePaletteSwap}>
-            <div className='palColor' style={{background: 'hsl(0, 100%, 40%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(22, 100%, 50%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(60, 100%, 50%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(130, 100%, 15%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(242, 69%, 49%)'}}></div>
-          </div>
-          <div className='colorHolder' onClick={handlePaletteSwap}>
-            <div className='palColor' style={{background: 'hsl(33, 90.8%, 12.7%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(33, 89.8%, 26.9%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(25, 95.4%, 42.7%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(221, 69.2%, 43.3%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(213, 68.6%, 90%)'}}></div>
-          </div>
-          <div className='colorHolder' onClick={handlePaletteSwap}>
-            <div className='palColor' style={{background: 'hsl(358,83%,35%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(2,72%,51%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(211,88%,32%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(0,0%,39%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(0,0%,14%)'}}></div>
-          </div>
-          <div className='colorHolder' onClick={handlePaletteSwap}>
-            <div className='palColor' style={{background: 'hsl(164,95%,43%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(240,100%,98%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(43,100%,70%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(197,19%,36%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(200,43%,7%)'}}></div>
-          </div>
-          <div className='colorHolder' onClick={handlePaletteSwap}>
-            <div className='palColor' style={{background: 'hsl(7,55%,30%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(6,56%,49%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(24,38%,87%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(183,66%,28%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(180,20%,20%)'}}></div>
-          </div>
-          <div className='colorHolder' onClick={handlePaletteSwap}>
-            <div className='palColor' style={{background: 'hsl(306, 81%, 21%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(327,100%,44%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(211,88%,32%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(0,0%,39%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(0,0%,14%)'}}></div>
-          </div>
-          <div className='colorHolder' onClick={handlePaletteSwap}>
-            <div className='palColor' style={{background: 'hsl(83, 45%, 18%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(59,70%,30%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(55, 47%, 78%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(48,99%,59%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(27, 55%, 33%)'}}></div>
-          </div>
-        </div>
-        <div className='link'>
-          <Link to='/'>Return to Main Menu</Link>
-        </div>
+      </section>
       </div>
-    </section>
     </div>
   )
 }

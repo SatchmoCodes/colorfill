@@ -337,71 +337,6 @@ function App() {
     }
   }
 
-  function surroundCheck(index, player) {
-    if (tempSquareArr[index + 1] == null || tempSquareArr[index + 1].owner == player) {
-
-    }
-    else if (tempSquareArr[index + 1].captured == false) {
-        if (tempSquareArr[index].owner == player && tempSquareArr[index].rowIndex == tempSquareArr[index + 1].rowIndex) {
-          tempSquareArr[index + 1].color = color
-          tempSquareArr[index + 1].captured = true
-          tempSquareArr[index + 1].owner = player
-          !radarActive && updateSquareCount(color, player)
-          !radarActive && totalCaptured++
-          !radarActive ? data.squareGrowth[index + 1] = `captured ${captureColor}` : data.squareGrowth[index + 1] = 'predicted'
-          setGrowth(data.squareGrowth)
-          tempSquareArr[index + 1].colIndex <= boardSize && captureCheck(color, index + 1, player)
-        }
-      }
-  }
-
-
-  // function handleReset() {
-  //   turnCount = 0
-  //   if (!saveActive) {
-  //     if (customBoardSize >= 5 && customBoardSize <= 40) {
-  //       boardSize = customBoardSize
-  //       totalDim = customBoardSize * customBoardSize
-  //     }
-  //     setBoardSize(boardSize)
-  //     // tempSquareArr = generateBoard(boardSize, totalDim).flat().slice(0, totalDim)
-  //   }
-  //   else {
-  //     tempSquareArr.forEach(sq => {
-  //       sq.color = sq.defaultColor
-  //       sq.fakeColor = sq.defaultColor
-  //       sq.captured = false
-  //     })
-  //     tempSquareArr[0].captured = true
-  //   }
-  //   data.squareGrowth = new Array(totalDim).fill(false)
-  //   setGrowth(data.squareGrowth)
-  //   setColorState(tempSquareArr)
-  //   setCount(0)
-  //   totalCaptured = 0
-  //   squareCounterArr.forEach(counter => {
-  //     counter.count = 0
-  //   })
-
-  //   tempSquareArr.forEach(sq => {
-  //     squareCounterArr.forEach(counter => {
-  //       if (sq.color == counter.color && !sq.index == 0) {
-  //         counter.count++
-  //       }
-  //     })
-  //   })
-    
-  //   setSquareCounter(squareCounterArr)
-   
-  //   tempSquareArr.forEach((sq, index) => {
-  //     if (sq.captured) {
-  //       captureCheck(sq.color, index);
-  //     }
-  //   });
-  //   setColorState(tempSquareArr)
-  //   setSelectedColor(tempSquareArr[0].color)
-  //   data.squareData = JSON.parse(JSON.stringify(tempSquareArr))
-  // }
 
   function handleSave() {
     setSaveActive(!saveActive)
@@ -416,32 +351,6 @@ function App() {
       }
     })
     setGrowth(data.squareGrowth)
-  }
-
-  function handleSizeChange(event) {
-    // console.log(customBoardSize)
-    // if (customBoardSize >= 5 && customBoardSize <= 40) {
-    //   boardSize = parseInt(customBoardSize)
-    //   totalDim = parseInt(customBoardSize * customBoardSize)
-    //   sizeString = 'Custom'
-    // }
-    // else {
-    //   boardSize = parseInt(event.target.value)
-    //   totalDim = parseInt(event.target.value * event.target.value)
-    //   handleReset()
-    // }
-    setNewBoardSize(event.target.value)
-  }
-
-  const handleCustomBoardSize = (event) => {
-    console.log(event.target.value)
-    if (event.target.value == '') {
-      setCustomBoardSize('')
-    }
-    else {
-      let x = parseInt(event.target.value)
-      setCustomBoardSize(x)
-    }
   }
 
   const handleGridToggle = (event) => {

@@ -16,6 +16,10 @@ async function seed() {
   const user = await prisma.user.create({
     data: {
       username: 'Satchmo',
+      wins: 0,
+      losses: 0,
+      winStreak: 0,
+      bestWinStreak: 0,
       password: {
         create: {
           hash: await bcrypt.hash(userPassword, 10),
@@ -27,6 +31,10 @@ async function seed() {
   await prisma.user.create({
     data: {
       username: 'john',
+      wins: 0,
+      losses: 0,
+      winStreak: 0,
+      bestWinStreak: 0,
       password: {
         create: {
           hash: await bcrypt.hash(userPassword, 10),

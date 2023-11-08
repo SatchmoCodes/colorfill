@@ -1,6 +1,6 @@
 import { prisma } from "~/db.server";
 
-export function createGameSession({ownerName, opponentName, boardId, boardSize, boardData, gameState, boardState, squareGrowth, boardType, gameType, turn, ownerScore, opponentScore, winner, loser, turnLog}) {
+export function createGameSession({ownerName, opponentName, boardId, boardSize, boardData, gameState, boardState, squareGrowth, boardType, gameType, code, turn, ownerScore, opponentScore, winner, loser, turnLog}) {
     return prisma.gameSession.create({
         data: {
             gameState,
@@ -8,6 +8,7 @@ export function createGameSession({ownerName, opponentName, boardId, boardSize, 
             squareGrowth,
             boardType,
             gameType,
+            code,
             turn,
             ownerScore,
             opponentScore,
@@ -37,9 +38,27 @@ export function createGameSession({ownerName, opponentName, boardId, boardSize, 
 
 export function getGameSession({ gameState }) {
     return prisma.gameSession.findMany({
-        where: {gameState: gameState},
-        select: { id: true, gameState: true, boardType: true, boardSize: true, squareGrowth: true, ownerName: true, opponentName: true, gameType: true, turn: true},
+        where: {gameState: gameState, NOT: { gameType: 'Private'}},
+        select: { id: true, gameState: true, boardType: true, boardSize: true, squareGrowth: true, ownerName: true, opponentName: true, gameType: true, turn: true, createdAt: true},
         orderBy: {createdAt: 'asc'}
+    })
+}
+
+export function getAllGameSessions() {
+    return prisma.gameSession.findMany({
+        where: { OR: [
+            { gameState: 'Waiting' },
+            { gameState: 'Playing' }
+        ], NOT: { gameType: 'Private'}},
+        select: { id: true, gameState: true, boardType: true, boardSize: true, squareGrowth: true, ownerName: true, opponentName: true, gameType: true, turn: true, createdAt: true},
+        orderBy: {createdAt: 'asc'}
+    })
+}
+
+export function getWaitingSessions() {
+    return prisma.gameSession.findMany({
+        where: {gameState: 'Waiting'},
+        select: { id: true, gameState: true, code: true}
     })
 }
 
@@ -54,7 +73,7 @@ export function getRecentGameSession({ gameState }) {
 export function getGameSessionById({ id }) {
     return prisma.gameSession.findUnique({
         where: {id},
-        select: { id: true, gameState: true, boardType: true, boardSize: true, boardState: true, squareGrowth: true, boardData: true, ownerName: true, opponentName: true, ownerScore: true, opponentScore: true, gameType: true, turn: true, turnLog: true, winner: true, loser: true, updatedAt: true},
+        select: { id: true, gameState: true, boardType: true, boardSize: true, boardState: true, squareGrowth: true, boardData: true, ownerName: true, opponentName: true, ownerScore: true, opponentScore: true, gameType: true, code: true, turn: true, turnLog: true, winner: true, loser: true, updatedAt: true},
     })
 }
 
@@ -99,15 +118,7 @@ export function updateFinalSessionState({ id, winner, loser}) {
         data: {
             winner: winner,
             loser: loser,
-        }
-    })
-}
-
-export function closeSession({ id }) {
-    return prisma.gameSession.update({
-        where: { id },
-        data: {
-            gameSession: 'Finished'
+            gameState: 'Finished'
         }
     })
 }

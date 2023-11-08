@@ -10,7 +10,11 @@ generator client {
 model User {
   id String @id @default(cuid())
 
-  username String @unique
+  username      String @unique
+  wins          Int
+  losses        Int
+  winStreak     Int
+  bestWinStreak Int
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -21,7 +25,7 @@ model User {
   Boards       Boards[]
   ownerName    GameSession[] @relation("ownerName")
   opponentName GameSession[] @relation("opponentName")
-  PVPScores    PVPScores[]
+  // PVPScores    PVPScores[]
 
   @@unique([id, username])
 }
@@ -61,18 +65,18 @@ model Scores {
   boardSize String
 }
 
-model PVPScores {
-  id        String   @unique @default(cuid())
-  score     String
-  createdAt DateTime @default(now())
+// model PVPScores {
+//   id        String   @unique @default(cuid())
+//   score     String
+//   createdAt DateTime @default(now())
 
-  user     User   @relation(fields: [userId, userName], references: [id, username])
-  userId   String
-  userName String
+//   user     User   @relation(fields: [userId, userName], references: [id, username])
+//   userId   String
+//   userName String
 
-  gameSession GameSession @relation(fields: [gameId], references: [id])
-  gameId      String
-}
+//   gameSession GameSession @relation(fields: [gameId], references: [id])
+//   gameId      String
+// }
 
 model Boards {
   id String @unique @default(cuid())
@@ -106,6 +110,7 @@ model GameSession {
   boardState    String
   boardType     String
   gameType      String
+  code          String
   squareGrowth  String
   turn          String
   ownerScore    Int
@@ -116,7 +121,7 @@ model GameSession {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  owner     User        @relation("ownerName", fields: [ownerName], references: [username])
-  opponent  User        @relation("opponentName", fields: [opponentName], references: [username])
-  PVPScores PVPScores[]
+  owner    User @relation("ownerName", fields: [ownerName], references: [username])
+  opponent User @relation("opponentName", fields: [opponentName], references: [username])
+  // PVPScores PVPScores[]
 }

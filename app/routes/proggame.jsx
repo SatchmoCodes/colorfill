@@ -16,6 +16,14 @@ import invariant from "tiny-invariant";
 import { useFetcher } from "@remix-run/react";
 import { getBestScore, getBestBoardScore } from '../models/score.server';
 
+import { Audio, TailSpin } from 'react-loader-spinner'
+
+import { library } from '@fortawesome/fontawesome-svg-core'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faCheckSquare, faCoffee, faGear, faX } from '@fortawesome/free-solid-svg-icons'
+
+library.add(faCheckSquare, faCoffee, faGear, faX)
+
 import { useHydrated } from "remix-utils"
 
 
@@ -108,6 +116,7 @@ let roundNumber = 1
 let totalScoreValue = 0
 let roundScoreValue
 let currentRoundValue
+let prevHighScore = null
 
 let hasRun = false
 let startPoint
@@ -145,6 +154,8 @@ function App() {
   const [oppTurnLog, setOppTurnLog] = useState(null)
 
   const [palColor, setPalColor] = useState(null)
+
+  const [newBoard, setNewBoard] = useState(false)
   
 
 //   progressive unique state
@@ -152,6 +163,7 @@ function App() {
   const [roundScore, setRoundScore] = useState(roundScoreValue)
   const [totalScore, setTotalScore] = useState(totalScoreValue)
   const [holeNumber, setHoleNumber] = useState(hole)
+  const [roundComplete, setRoundComplete] = useState(false)
 
 
   const [boardId, setBoardId] = useState(data.board.id)
@@ -213,11 +225,13 @@ function App() {
       data.squareData[hole] = JSON.parse(JSON.stringify(tempSquareArr))
       setColorState(tempSquareArr)
       localStorage.getItem('grid') == 'true' && setGrid(true)
+      window.history.replaceState(null, '/game', ['/playmenu'])
       hasRun = true
       }
       if (data.bestGlobalScore) {
         fullOppTurnLogArr = JSON.parse(data.bestGlobalScore.turnlog)
         setOppTurnLog(fullOppTurnLogArr.turnLog[0])
+        prevHighScore = data.bestGlobalScore.score
       }
       // for (let i = 0; i < 5; i++) {
       //   document.documentElement.style.setProperty(colors[i], localStorage.getItem('palColor', i));
@@ -279,6 +293,7 @@ function App() {
         setRoundScore(currentRoundValue)
         totalScoreValue += currentRoundValue
         setTotalScore(totalScoreValue)
+        setRoundComplete(true)
         roundNumber <= 9 ? document.querySelector('.roundDialog').show() : document.querySelector('.endDialog').show()
         if (roundNumber >  9) {
           setComplete(true)
@@ -384,6 +399,9 @@ function App() {
       roundNumber = 1
       parValue = 10
       dimensions = 5
+      totalScoreValue = 0
+      setTotalScore(totalScoreValue)
+      prevHighScore = data.bestGlobalScore.score
     }
     else {
       hole++
@@ -432,6 +450,7 @@ function App() {
     fullTurnLogArr.push(turnLogArr)
     setTurnLog(turnLogArr)
     setComplete(false)
+    setRoundComplete(false)
     document.querySelector('.roundDialog').close()
     document.querySelector('.endDialog').close()
   }
@@ -515,180 +534,218 @@ function App() {
       </dialog>
     <dialog className='endDialog'>
         <fetcher.Form reloadDocument method='post'>
-            <h2>Game Over!</h2>
-            <h3>You finished {totalScore > 0 ? `+${totalScore}` : totalScore} {totalScore <= 0 ? 'under' : 'over'} par!</h3>
-            <input type='hidden' name='score' value={totalScore}></input>
-            <input type='hidden' name='boardId' value={boardId}></input>
-            <input type='hidden' name='boardSize' value={'10'}></input>
-            <input type='hidden' value={user.username} name='username'></input>
-            <input type='hidden' value={'newBoard'} name='submitType'></input>
-            <button type='submit'>New Board</button>
-        </fetcher.Form>
-        <button type='submit' onClick={handleReset}>Retry</button>
-    </dialog>
-    <div className={`gameContainer ${isHydrated ? '' : 'animate-appear'}`}>
-      <div className='settingsIcon' onClick={handleOpen}>{isOpen ? 'X' : 'O'}</div>
-      <section className='left'>
-        <div className='holeInfo'>
-          <h1>Hole {holeNumber + 1} / 10</h1>
-          <h1>{count} / {par}</h1>
-          <h2>Total: {totalScore > 0 ? `+${totalScore}` : totalScore} {totalScore <= 0 ? 'Under' : 'Over'}</h2>
-        </div>
-        <div className='board' style={{gridTemplateColumns: `repeat(${boardSize}, 1fr)`, background: !radarActive ? selectedColor : 'white'}}>
-          {data.squareData[hole].map((sq, index) => {
-            return (
-              <div className={`square ${data.squareGrowth[hole][index] == false ? '' : data.squareGrowth[hole][index]}`} key={sq.index} style={{background: colorState[index].fakeColor, border: grid ? '1px solid black' : ''}}></div>
-            )
-          })}
-        </div>
-        <section className='buttonSection'>
-        <div className='extraRow'>
-            <div className='resetButton'>
-              <fetcher.Form reloadDocument method='post'>
-                <input type='hidden' value='newBoard' name='submitType'></input>
-                <button type='submit'>New Board</button>
-              </fetcher.Form>
-            </div>
-            {/* <div className={`saveButton ${saveActive === true ? 'active' : ''}`} onClick={handleSave}>
-              <h3>Save</h3>
-            </div> */}
-            <button className={`predictButton ${radarActive == true ? 'active' : ''}`} onClick={handlePredict}>Radar</button>
-          </div>
-          <div className='colorRow'>
-            <div className={`color ${selectedColor === 'var(--red)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--red)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--red)') : e.preventDefault()} style={{ background: 'var(--red)' }}></div>
-            <div className={`color ${selectedColor === 'var(--orange)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--orange)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--orange)') : e.preventDefault()} style={{ background: 'var(--orange)' }}></div>
-            <div className={`color ${selectedColor === 'var(--yellow)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--yellow)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--yellow)') : e.preventDefault()} style={{ background: 'var(--yellow)' }}></div>
-            <div className={`color ${selectedColor === 'var(--green)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--green)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--green)') : e.preventDefault()} style={{ background: 'var(--green)' }}></div>
-            <div className={`color ${selectedColor === 'var(--blue)' ? 'grayed' : ''}`} onClick={!complete ? () => colorChange('var(--blue)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--blue)') : e.preventDefault()} style={{ background: 'var(--blue)' }}></div>
-        </div>
-        </section>
-      </section>
-    <section className='right'>
-    <div className='scoreboard'>
-    <h2>{data.bestGlobalScore ? `Score to Beat: ${data.bestGlobalScore.score > 0 ? `+${data.bestGlobalScore.score}` : data.bestGlobalScore.score}` : `High Score: ${highScore > 0 ? `+${highScore}` : highScore}`}</h2>
-      <h3>Squares Remaining</h3>
-        <div className='squareRow'>
-          <div className='fakeSquare' style={{background: 'var(--red)'}}>
-            <h4>{squareCounter[0].count}</h4>
-          </div>
-          <div className='fakeSquare' style={{background: 'var(--orange)'}}>
-            <h4>{squareCounter[1].count}</h4>
-          </div>
-          <div className='fakeSquare' style={{background: 'var(--yellow)'}}>
-            <h4>{squareCounter[2].count}</h4>
-          </div>
-          <div className='fakeSquare'  style={{background: 'var(--green)'}}>
-            <h4>{squareCounter[3].count}</h4>
-          </div>
-          <div className='fakeSquare'  style={{background: 'var(--blue)'}}>
-            <h4>{squareCounter[4].count}</h4>
-          </div>
-        </div>
-      </div>
-      <div className={`options ${isOpen ? 'show' : ''}`}>
-        <div className='gridView'>
-          <h3>Grid View</h3>
-          <input id='grid' type='checkbox' value='1px solid black' checked={grid} name='grid' onChange={handleGridToggle}></input>
-          <label htmlFor='grid'>Grid</label>
-        </div>
-        <div className='turnLog'>
-          <h3>Turn Log</h3>
-          <div className='row'>
-              <h3>Turn</h3>
-              <h3>Captured</h3>
-          </div>
-          {data.bestGlobalScore && <div className='row'>
-              <h3></h3>
-              <h3>You</h3>
-              <h3>{data.bestGlobalScore.userName}</h3>
+          {fetcher.state === 'submitting' ? 
+          <div>
+            <Audio height="80" width="80"radius="9"color="green"ariaLabel="loading" wrapperStyle wrapperClass></Audio>
+          </div> : 
+          <div>
+            {prevHighScore != null ? 
+            <>
+              <h2>Game Over!</h2>
+              <h3>{totalScore < prevHighScore ? `You beat the previous high score with ${totalScore} ${totalScore > 0 ? 'over' : 'under'} par` : `You did not beat the previous high score`}</h3>
+              <input type='hidden' name='score' value={totalScore}></input>
+              <input type='hidden' name='boardId' value={boardId}></input>
+              <input type='hidden' name='boardSize' value={'10'}></input>
+              <input type='hidden' value={user.username} name='username'></input>
+              <input type='hidden' value={'newBoard'} name='submitType'></input>
+              <button type='submit' onClick={()=> setNewBoard(true)}>New Board</button>
+            </> :
+            <>
+              <h2>Game Over!</h2>
+              <h3>You finished {totalScore > 0 ? `+${totalScore}` : totalScore} {totalScore <= 0 ? 'under' : 'over'} par!</h3>
+              <input type='hidden' name='score' value={totalScore}></input>
+              <input type='hidden' name='boardId' value={boardId}></input>
+              <input type='hidden' name='boardSize' value={'10'}></input>
+              <input type='hidden' value={user.username} name='username'></input>
+              <input type='hidden' value={'newBoard'} name='submitType'></input>
+              <button type='submit' onClick={()=> setNewBoard(true)}>New Board</button>
+            </>} 
           </div>}
-          <div className='turnLogBox'>
-            {turnLog && turnLog.map((row, index) => {
+        </fetcher.Form>
+        {fetcher.state !== 'submitting' && <button type='submit' onClick={handleReset}>Retry</button>}
+    </dialog>
+    <div className={`bigWrap`}>
+      {newBoard && <TailSpin height="80" width="80"radius="9"color="green"ariaLabel="loading" wrapperStyle wrapperClass='newBoardLoading'></TailSpin>}
+      <div className={`gameContainer ${isHydrated ? '' : 'animate-appear'} ${newBoard ? 'fadeOut' : ''}`}>
+        {/* <div className='settingsIcon' onClick={handleOpen}>{isOpen ? 'X' : 'O'}</div> */}
+        {isHydrated && <FontAwesomeIcon className='settingsIcon' icon={!isOpen ? "fa-solid fa-gear" : "fa-solid fa-x"} onClick={handleOpen}/>}
+        <section className={`left ${isOpen ? 'hide' : ''}`}>
+          <div className='holeInfo'>
+            <h1>Round {holeNumber + 1} / 10</h1>
+            <h1>{count} / {par}</h1>
+            <h2>Total: {totalScore > 0 ? `+${totalScore}` : totalScore} {totalScore <= 0 ? 'Under' : 'Over'}</h2>
+          </div>
+          <div className='board' style={{gridTemplateColumns: `repeat(${boardSize}, 1fr)`, background: !radarActive ? selectedColor : 'white'}}>
+            {data.squareData[hole].map((sq, index) => {
               return (
-                <div className='row'>
-                <h3>{index + 1}</h3>
-                <div className='turnInfo'>
-                  <div className='fakeSquare' style={{background: turnLog[index].color}}>
-                    <h4>{turnLog[index].captured}</h4>
-                  </div>
-                </div>
-                {oppTurnLog != null && <div className='turnInfo'>
-                  <div className='fakeSquare' style={oppTurnLog[index] && {background: oppTurnLog[index].color}}>
-                    <h4>{oppTurnLog[index] && oppTurnLog[index].captured}</h4>
-                  </div>
-                  {/* <div className='fakeSquare' style={data.bestGlobalScore && {background: JSON.parse(data.bestGlobalScore.turnlog.turnLog[index]).color}}>
-                    <h4>{data.bestGlobalScore && JSON.parse(data.bestGlobalScore.turnlog.turnLog[index]).captured}</h4>
-                  </div> */}
-                </div>}
-              </div>
+                <div className={`square ${data.squareGrowth[hole][index] == false ? '' : data.squareGrowth[hole][index]} ${isHydrated ? 'captureFade' : ''}`} key={sq.index} style={{background: colorState[index].fakeColor, border: grid ? '1px solid black' : ''}}></div>
               )
             })}
-            <div className='anchor'></div>
+          </div>
+          <section className='buttonSection'>
+          <div className='extraRow'>
+              <div className='resetButton'>
+                <fetcher.Form reloadDocument method='post'>
+                  <input type='hidden' value='newBoard' name='submitType'></input>
+                  <button type='submit' onClick={()=> setNewBoard(true)}>New Board</button>
+                </fetcher.Form>
+              </div>
+              {/* <div className={`saveButton ${saveActive === true ? 'active' : ''}`} onClick={handleSave}>
+                <h3>Save</h3>
+              </div> */}
+              <button className={`predictButton ${radarActive == true ? 'active' : ''}`} onClick={handlePredict}>Radar</button>
+            </div>
+            <div className='colorRow'>
+              <div className={`color ${selectedColor === 'var(--red)' ? 'grayed' : ''}`} onClick={!complete && !roundComplete ? () => colorChange('var(--red)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--red)') : e.preventDefault()} style={{ background: 'var(--red)' }}></div>
+              <div className={`color ${selectedColor === 'var(--orange)' ? 'grayed' : ''}`} onClick={!complete && !roundComplete ? () => colorChange('var(--orange)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--orange)') : e.preventDefault()} style={{ background: 'var(--orange)' }}></div>
+              <div className={`color ${selectedColor === 'var(--yellow)' ? 'grayed' : ''}`} onClick={!complete && !roundComplete ? () => colorChange('var(--yellow)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--yellow)') : e.preventDefault()} style={{ background: 'var(--yellow)' }}></div>
+              <div className={`color ${selectedColor === 'var(--green)' ? 'grayed' : ''}`} onClick={!complete && !roundComplete ? () => colorChange('var(--green)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--green)') : e.preventDefault()} style={{ background: 'var(--green)' }}></div>
+              <div className={`color ${selectedColor === 'var(--blue)' ? 'grayed' : ''}`} onClick={!complete && !roundComplete ? () => colorChange('var(--blue)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--blue)') : e.preventDefault()} style={{ background: 'var(--blue)' }}></div>
+          </div>
+          </section>
+        </section>
+      <section className='right'>
+      <div className='scoreboard'>
+      <h2>{prevHighScore != null ? `Score to Beat: ${prevHighScore > 0 ? `+${prevHighScore}` : prevHighScore}` : `High Score: ${highScore > 0 ? `+${highScore}` : highScore}`}</h2>
+        <h3>Squares Remaining</h3>
+          <div className='squareRow'>
+            <div className='fakeSquare' style={{background: 'var(--red)'}}>
+              <h4>{squareCounter[0].count}</h4>
+            </div>
+            <div className='fakeSquare' style={{background: 'var(--orange)'}}>
+              <h4>{squareCounter[1].count}</h4>
+            </div>
+            <div className='fakeSquare' style={{background: 'var(--yellow)'}}>
+              <h4>{squareCounter[2].count}</h4>
+            </div>
+            <div className='fakeSquare'  style={{background: 'var(--green)'}}>
+              <h4>{squareCounter[3].count}</h4>
+            </div>
+            <div className='fakeSquare'  style={{background: 'var(--blue)'}}>
+              <h4>{squareCounter[4].count}</h4>
+            </div>
           </div>
         </div>
-        <div className='colorPalette'>
-          <div className='colorHolder selectedPalette'>
-            <div className='palColor' style={{background: 'var(--red)'}}></div>
-            <div className='palColor' style={{background: 'var(--orange)'}}></div>
-            <div className='palColor' style={{background: 'var(--yellow)'}}></div>
-            <div className='palColor' style={{background: 'var(--green)'}}></div>
-            <div className='palColor' style={{background: 'var(--blue)'}}></div>
+        <div className={`options ${isOpen ? 'show' : ''}`}>
+          <div className='gridView'>
+            <h2>Grid View</h2>
+            <input id='grid' type='checkbox' value='1px solid black' checked={grid} name='grid' onChange={handleGridToggle}></input>
+            <label htmlFor='grid'>Grid</label>
           </div>
-          <div className='colorHolder' onClick={handlePaletteSwap}>
-            <div className='palColor' style={{background: 'hsl(0, 100%, 40%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(22, 100%, 50%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(60, 100%, 50%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(130, 100%, 15%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(242, 69%, 49%)'}}></div>
+          <div className='turnLog'>
+            <h3>Turn Log</h3>
+            <div className='row'>
+                <h3>Turn</h3>
+                <h3>Captured</h3>
+            </div>
+            {prevHighScore != null && <div className='row'>
+                <h3></h3>
+                <h3>You</h3>
+                <h3>{data.bestGlobalScore.userName}</h3>
+            </div>}
+            <div className='turnLogBox'>
+              {turnLog && turnLog.map((row, index) => {
+                return (
+                  <div className='row'>
+                  <h3>{index + 1}</h3>
+                  <div className='turnInfo'>
+                    <div className='fakeSquare' style={{background: turnLog[index].color}}>
+                      <h4>{turnLog[index].captured}</h4>
+                    </div>
+                  </div>
+                  {prevHighScore != null && <div className='turnInfo'>
+                    <div className='fakeSquare' style={oppTurnLog[index] && {background: oppTurnLog[index].color}}>
+                      <h4>{oppTurnLog[index] && oppTurnLog[index].captured}</h4>
+                    </div>
+                    {/* <div className='fakeSquare' style={data.bestGlobalScore && {background: JSON.parse(data.bestGlobalScore.turnlog.turnLog[index]).color}}>
+                      <h4>{data.bestGlobalScore && JSON.parse(data.bestGlobalScore.turnlog.turnLog[index]).captured}</h4>
+                    </div> */}
+                  </div>}
+                </div>
+                )
+              })}
+              <div className='anchor'></div>
+            </div>
           </div>
-          <div className='colorHolder' onClick={handlePaletteSwap}>
-            <div className='palColor' style={{background: 'hsl(33, 90.8%, 12.7%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(33, 89.8%, 26.9%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(25, 95.4%, 42.7%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(221, 69.2%, 43.3%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(213, 68.6%, 90%)'}}></div>
+          <h2 className='colorOptions'>Color Options</h2>
+          <div className='colorPalette'>
+            <div className='colorHolder selectedPalette'>
+              <div className='palColor' style={{background: 'var(--red)'}}></div>
+              <div className='palColor' style={{background: 'var(--orange)'}}></div>
+              <div className='palColor' style={{background: 'var(--yellow)'}}></div>
+              <div className='palColor' style={{background: 'var(--green)'}}></div>
+              <div className='palColor' style={{background: 'var(--blue)'}}></div>
+            </div>
+            <div className='colorHolder' onClick={handlePaletteSwap}>
+              <div className='palColor' style={{background: 'hsl(0, 100%, 40%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(22, 100%, 50%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(60, 100%, 50%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(130, 100%, 15%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(242, 69%, 49%)'}}></div>
+              <div className='palColor hide' style={{background: 'white'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(31, 31, 31)'}}></div>
+            </div>
+            <div className='colorHolder' onClick={handlePaletteSwap}>
+              <div className='palColor' style={{background: 'hsl(33, 90.8%, 12.7%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(33, 89.8%, 26.9%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(25, 95.4%, 42.7%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(221, 69.2%, 43.3%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(213, 68.6%, 90%)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(133, 7, 7)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(8, 68, 17)'}}></div>
+            </div>
+            <div className='colorHolder' onClick={handlePaletteSwap}>
+              <div className='palColor' style={{background: 'hsl(358,83%,35%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(2,72%,51%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(211,88%,32%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(0,0%,39%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(0,0%,14%)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(143, 4, 156)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(255, 235, 15)'}}></div>
+            </div>
+            <div className='colorHolder' onClick={handlePaletteSwap}>
+              <div className='palColor' style={{background: 'hsl(164,95%,43%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(240,100%,98%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(43,100%,70%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(197,19%,36%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(200,43%,7%)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(5, 73, 157)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(197, 42, 11)'}}></div>
+            </div>
+            <div className='colorHolder' onClick={handlePaletteSwap}>
+              <div className='palColor' style={{background: 'hsl(7,55%,30%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(6,56%,49%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(24,38%,87%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(183,66%,28%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(180,20%,20%)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(228, 174, 13)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(110, 13, 228)'}}></div>
+            </div>
+            <div className='colorHolder' onClick={handlePaletteSwap}>
+              <div className='palColor' style={{background: 'hsl(306, 81%, 21%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(327,100%,44%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(211,88%,32%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(0,0%,39%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(0,0%,14%)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(23, 190, 8)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(190, 20, 8)'}}></div>
+            </div>
+            <div className='colorHolder' onClick={handlePaletteSwap}>
+              <div className='palColor' style={{background: 'hsl(83, 45%, 18%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(59,70%,30%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(55, 47%, 78%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(48,99%,59%)'}}></div>
+              <div className='palColor' style={{background: 'hsl(27, 55%, 33%)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(31, 194, 215)'}}></div>
+              <div className='palColor hide' style={{background: 'rgb(204, 72, 16)'}}></div>
+            </div>
           </div>
-          <div className='colorHolder' onClick={handlePaletteSwap}>
-            <div className='palColor' style={{background: 'hsl(358,83%,35%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(2,72%,51%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(211,88%,32%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(0,0%,39%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(0,0%,14%)'}}></div>
-          </div>
-          <div className='colorHolder' onClick={handlePaletteSwap}>
-            <div className='palColor' style={{background: 'hsl(164,95%,43%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(240,100%,98%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(43,100%,70%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(197,19%,36%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(200,43%,7%)'}}></div>
-          </div>
-          <div className='colorHolder' onClick={handlePaletteSwap}>
-            <div className='palColor' style={{background: 'hsl(7,55%,30%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(6,56%,49%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(24,38%,87%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(183,66%,28%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(180,20%,20%)'}}></div>
-          </div>
-          <div className='colorHolder' onClick={handlePaletteSwap}>
-            <div className='palColor' style={{background: 'hsl(306, 81%, 21%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(327,100%,44%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(211,88%,32%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(0,0%,39%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(0,0%,14%)'}}></div>
-          </div>
-          <div className='colorHolder' onClick={handlePaletteSwap}>
-            <div className='palColor' style={{background: 'hsl(83, 45%, 18%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(59,70%,30%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(55, 47%, 78%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(48,99%,59%)'}}></div>
-            <div className='palColor' style={{background: 'hsl(27, 55%, 33%)'}}></div>
+          <div className='link'>
+            <Link to='/'>Return to Main Menu</Link>
           </div>
         </div>
-        <div className='link'>
-          <Link to='/'>Return to Main Menu</Link>
-        </div>
+      </section>
       </div>
-    </section>
     </div>
     </>
   )

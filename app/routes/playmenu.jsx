@@ -88,7 +88,7 @@ export default function Index() {
             <img src={logo}></img>
         </Link>
       </div>
-      <div className="gameOptions">
+      <div className="gamemodeOptions">
         <Form reloadDocument method='post'>
           <button type='submit'>Free Play</button>
           <input type='hidden' value='freeplay' name='mode'></input>

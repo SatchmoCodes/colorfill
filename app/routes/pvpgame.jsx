@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useContext, useState } from 'react'
 import { useEffect, useRef } from 'react'
 import { json, redirect } from "@remix-run/node";
 import gameStyle from '~/styles/game.css'
@@ -6,9 +6,9 @@ import generateBoard from './pvpGenerator'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { Link, useNavigation, useBeforeUnload } from "@remix-run/react";
-import { faCheckSquare, faCoffee, faGear } from '@fortawesome/free-solid-svg-icons'
+import { faCheckSquare, faCoffee, faGear, faX } from '@fortawesome/free-solid-svg-icons'
 
-library.add(faCheckSquare, faCoffee, faGear)
+library.add(faCheckSquare, faCoffee, faGear, faX)
 
 import { useUser } from "~/utils";
 import { requireUserId } from "~/session.server";
@@ -23,10 +23,13 @@ import { emitter } from "../services/emitter.server";
 import { useEventSource } from "remix-utils";
 
 import { useFetcher } from "@remix-run/react";
-import { getGameSessionById, updateBoardStateOwner, updateBoardStateOpponent, updateSessionState, updateGameLeaver } from '../models/gamesession.server';
+import { getGameSessionById, updateBoardStateOwner, updateBoardStateOpponent, updateSessionState, updateFinalSessionState } from '../models/gamesession.server';
 
 import { useHydrated } from "remix-utils"
+import { createPVPScore } from '../models/pvpscores.server';
+import { getBestWinStreak, getUserByUsername, resetUserWinStreak, updateBestWinStreak, updateUserLosses, updateUserWinStreak, updateUserWins } from '../models/user.server';
 
+// import { useHistory } from 'react-router-dom';
 
 export const HeadersFunction = () => {
   const headers = new Headers()
@@ -47,10 +50,12 @@ export const loader = async ({ params, request }) => {
   squareData = squareData.flat()
   let squareGrowth = JSON.parse(gameSession.squareGrowth)
 
-  if (gameSession.gameState == 'Finished') {
+  if (gameSession.gameState == 'Waiting') {
     return redirect('/pvpmenu')
   }
-  return json({ gameSession, squareData, squareGrowth });
+  const ownerId = await getUserByUsername(gameSession.ownerName)
+  const opponentId = await getUserByUsername(gameSession.opponentName)
+  return json({ gameSession, squareData, squareGrowth, ownerId, opponentId });
 };
 
 
@@ -66,14 +71,58 @@ export const action = async ({ request }) => {
     const squareGrowth = formData.get('squareGrowth')
     const turn = formData.get('turn')
     const captured = parseInt(formData.get('captured'))
+    const turnLog = formData.get('turnLog')
     if (turn == 'Owner') {
-      const updatedGameSession = await updateBoardStateOpponent({ id: sessionId, boardState, squareGrowth, turn, opponentScore: captured})
+      const updatedGameSession = await updateBoardStateOpponent({ id: sessionId, boardState, squareGrowth, turn, turnLog, opponentScore: captured})
       emitter.emit('updateBoard-gameSession', JSON.stringify(updatedGameSession))
     }
     else {
-      const updatedGameSession = await updateBoardStateOwner({ id: sessionId, boardState, squareGrowth, turn, ownerScore: captured})
+      const updatedGameSession = await updateBoardStateOwner({ id: sessionId, boardState, squareGrowth, turn, turnLog, ownerScore: captured})
       emitter.emit('updateBoard-gameSession', JSON.stringify(updatedGameSession))
     }
+  }
+  // else if (submitType == 'Leaving') {
+  //   console.log("ballsaa")
+  //   const updatedSessionState = await updateSessionState({ id: sessionId, gameState: 'Botout'})
+  //   emitter.emit('edit-gameSession', JSON.stringify(updatedSessionState))
+  //   return redirect('/pvpmenu')
+  // }
+  else if (submitType == 'gameOver') {
+    const winner = formData.get('winner')
+    const loser = formData.get('loser')
+    const ownerName = formData.get('ownerName')
+    const ownerId = formData.get('ownerId')
+    const opponentName = formData.get('opponentName')
+    const opponentId = formData.get('opponentId')
+    const updatedSessionState = await updateFinalSessionState({ id: sessionId, winner: winner, loser: loser})
+    if (winner == ownerName) {
+      const win = await updateUserWins({ id: ownerId })
+      const loss = await updateUserLosses({ id: opponentId })
+      const winStreak = await updateUserWinStreak({ id: ownerId })
+      const resetWinstreak = await resetUserWinStreak({ id: opponentId })
+      const prevBestWinStreak = await getBestWinStreak({ id: ownerId})
+      console.log('previous win streak')
+      console.log(prevBestWinStreak)
+      if (winStreak.winStreak > prevBestWinStreak.bestWinStreak) {
+        const newBestWinStreak = await updateBestWinStreak({ id: ownerId, bestWinStreak: winStreak.winStreak})
+      }
+      // const ownerScore = await createPVPScore({ score: 'Win', userId: ownerId, userName: ownerName, gameId: sessionId})
+      // const opponentScore = await createPVPScore({ score: 'Loss', userId: opponentId, userName: opponentName, gameId: sessionId})
+    }
+    else {
+      const win = await updateUserWins({ id: opponentId })
+      const loss = await updateUserLosses({ id: ownerId })
+      const winStreak = await updateUserWinStreak({ id: opponentId })
+      const resetWinStreak = await resetUserWinStreak({ id: ownerId })
+      const prevBestWinStreak = await getBestWinStreak({ id: opponentId})
+      if (winStreak.winStreak > prevBestWinStreak.bestWinStreak) {
+        const newBestWinStreak = await updateBestWinStreak({ id: opponentId, bestWinStreak: winStreak.winStreak})
+      }
+      // const ownerScore = await createPVPScore({ score: 'Loss', userId: ownerId, userName: ownerName, gameId: sessionId})
+      // const opponentScore = await createPVPScore({ score: 'Win', userId: opponentId, userName: opponentName, gameId: sessionId})
+    }
+    
+
   }
   return null
 }
@@ -121,6 +170,7 @@ let squareCounterArr = [
 
 let tempSquareArr
 let turnLogArr = []
+let newArrayCauseReactIsLame
 let turnLogJSON
 let boardStateJSON
 let numberCaptured = 0
@@ -146,7 +196,7 @@ function App() {
   const Ref = useRef(null);
  
     // The state for our timer
-    const [timer, setTimer] = useState(11);
+    const [timer, setTimer] = useState(13);
  
     const getTimeRemaining = (e) => {
         const total = Date.parse(e) - Date.parse(new Date());
@@ -169,7 +219,6 @@ function App() {
     }
 
     const clearTimer = (e) => { 
-        setTimer(11);
         if (Ref.current) clearInterval(Ref.current);
           const id = setInterval(() => {
             startTimer(e);
@@ -179,8 +228,15 @@ function App() {
     }
  
     const getDeadTime = () => {
-        let deadline = new Date();
-        deadline.setSeconds(deadline.getSeconds() + 11);
+      let deadline
+        if (boardUpdate) {
+          let parsedBoardUpdate = JSON.parse(boardUpdate)
+          deadline = new Date((parsedBoardUpdate.updatedAt));
+        }
+        else {
+          deadline = new Date((data.gameSession.updatedAt));
+        }
+        deadline.setSeconds(deadline.getSeconds() + 13);
         return deadline;
     }
     useEffect(() => {
@@ -210,8 +266,7 @@ function App() {
   const [ownerColor, setOwnerColor] = useState(data.squareData[0].color)
   const [opponentColor, setOpponentColor] = useState(data.squareData[data.squareData.length - 1].color)
   const [turnOrder, setTurnOrder] = useState(data.gameSession.turn)
-  const [leaver, setLeaver] = useState(null)
-
+  const [blocked, setBlocked] = useState(false)
 
   let boardUpdate = useEventSource('/pvpgame/subscribe', {event: 'updateBoard-gameSession'})
 
@@ -233,8 +288,13 @@ function App() {
         remainingSquares = totalSquares - squaresCaptured
         setOwnerScore(parsedBoardUpdate.ownerScore)
         setOpponentScore(parsedBoardUpdate.opponentScore)
+        setBlocked(false)
         clearTimer(getDeadTime())
         setTurnOrder(parsedBoardUpdate.turn)
+        turnLogArr = JSON.parse(parsedBoardUpdate.turnLog)
+        console.log('after parse')
+        console.log(turnLogArr)
+        setTurnLog(turnLogArr)
         document.querySelector('.time').classList.remove('crunch')
         setRadarActive(true)
         if (parsedBoardUpdate.ownerScore + remainingSquares < parsedBoardUpdate.opponentScore) {
@@ -250,7 +310,15 @@ function App() {
 
   useEffect(() => {
     if (complete) {
+      let previousPlayer
+      data.gameSession.turn == 'Owner' ? previousPlayer = data.gameSession.opponentName : previousPlayer = data.gameSession.ownerName
       clearInterval(Ref.current)
+      if (ownerScore > opponentScore && user.username == previousPlayer) {
+        fetcher.submit({submitType: 'gameOver', winner: data.gameSession.ownerName, loser: data.gameSession.opponentName, sessionId: data.gameSession.id, ownerName: data.ownerId.username, ownerId: data.ownerId.id, opponentName: data.opponentId.username, opponentId: data.opponentId.id}, {method: 'post'})
+      }
+      else if (ownerScore < opponentScore && user.username == previousPlayer) {
+        fetcher.submit({submitType: 'gameOver', winner: data.gameSession.opponentName, loser: data.gameSession.ownerName, sessionId: data.gameSession.id, ownerName: data.ownerId.username, ownerId: data.ownerId.id, opponentName: data.opponentId.username, opponentId: data.opponentId.id}, {method: 'post'})
+      }
       document.querySelector('.victory').show()
     }
   }, [complete])
@@ -283,7 +351,12 @@ function App() {
           }
           boardStateJSON = JSON.stringify(tempSquareArr)
           let squareGrowthJSON = JSON.stringify(data.squareGrowth)
-          fetcher.submit({boardState: boardStateJSON, submitType: 'boardUpdate', turn: turn, sessionId: data.gameSession.id, squareGrowth: squareGrowthJSON, captured: numberCaptured}, {method: 'post'})
+          let turnLogJSON = JSON.stringify(turnLogArr)
+          let previousPlayer
+          data.gameSession.turn == 'Owner' ? previousPlayer = data.gameSession.opponentName : previousPlayer = data.gameSession.ownerName
+          if (user.username == previousPlayer) {
+            fetcher.submit({boardState: boardStateJSON, submitType: 'boardUpdate', turn: turn, sessionId: data.gameSession.id, squareGrowth: squareGrowthJSON, turnLog: turnLogJSON, captured: numberCaptured}, {method: 'post'})
+          }
         }
         fakeCaptured = 0
       }
@@ -301,6 +374,9 @@ function App() {
 
   useEffect(() => {
     if (!hasRun) {
+      if (data.gameSession.winner != '') {
+        window.location.href = '/pvpmenu'
+      }
       tempSquareArr = JSON.parse(JSON.stringify(data.squareData))
       tempSquareArr.forEach(sq => {
         // boardCode += (colors.indexOf(sq.color))
@@ -332,9 +408,14 @@ function App() {
     // }
     data.squareData = JSON.parse(JSON.stringify(tempSquareArr))
     setColorState(tempSquareArr)
+    if (data.gameSession.turnLog != '') {
+      turnLogArr = JSON.parse(data.gameSession.turnLog)
+      setTurnLog(turnLogArr)
+    }
     localStorage.getItem('grid') == 'true' && setGrid(true)
     hasRun = true
     clearTimer(getDeadTime())
+    window.history.replaceState(null, '/game', ['/pvpmenu'])
     }
     for (let i = 0; i < paletteColors.length; i++) {
       if (localStorage.getItem(paletteColors[i])) {
@@ -349,16 +430,14 @@ function App() {
       document.querySelector('.time').classList.add('crunch')
     }
     let blockedColor
-    console.log(timer)
+    if (timer <= 1) {
+      setBlocked(true)
+    }
     if (timer <= 0) {
-      console.log('balls')
-      console.log(turnOrder)
       if (turnOrder == 'Owner') {
         for (let i = 0; i < colors.length; i++) {
           if (ownerColor == colors[i]) {
             blockedColor = i
-            console.log('owner color')
-            console.log(ownerColor)
           }
         }
       }
@@ -366,10 +445,7 @@ function App() {
         console.log('else')
         for (let i = 0; i < colors.length; i++) {
           if (opponentColor == colors[i]) {
-            blockedColor = i
-            console.log('opponent color')
-            console.log(opponentColor)
-            
+            blockedColor = i  
           }
         }
       }
@@ -377,15 +453,34 @@ function App() {
       while (selectedColor == blockedColor) {
         selectedColor = Math.floor(Math.random() * 5)
       }
-      console.log('color here')
-      console.log(colors[selectedColor])
-      colorChange(colors[selectedColor])
+      let leaver = true
+      if (turnOrder == 'Owner' && user.username == data.gameSession.ownerName) {
+        colorChange(colors[selectedColor])
+        leaver = false
+      }
+      else if (turnOrder == 'Opponent' && user.username == data.gameSession.opponentName) {
+        colorChange(colors[selectedColor])
+        leaver = false
+      }
+      else if (turnOrder == 'Owner' && user.username == data.gameSession.opponentName && leaver == true) {
+        if (leaver == true) {
+          colorChange(colors[selectedColor])
+        } 
+      }
+      else if (turnOrder == 'Opponent' && user.username == data.gameSession.ownerName && leaver == true) {
+        if (leaver == true) {
+          colorChange(colors[selectedColor])
+        } 
+      }
+      leaver = true
     }
   }, [timer])
 
 
   function colorChange(color) {
-    roundCaptured = 0
+    totalCaptured = 0
+    numberCaptured = totalCaptured
+    //block spectator from making a move
     if (!radarActive) {
       console.log("timer")
       console.log(timer)
@@ -400,6 +495,7 @@ function App() {
         }
       }
     }
+    setBlocked(true)
     if (radarActive) {
       fakeTurn == 'Owner' ? currentPlayer = 'Opponent' : currentPlayer = 'Owner'
     }
@@ -410,7 +506,6 @@ function App() {
       console.log(color)
       currentPlayer == 'Owner' ? setOwnerColor(color) : setOpponentColor(color)
     }
-    let numberCaptured = totalCaptured
     // setColorState(tempSquareArr)
     data.squareGrowth.map((e, index) => {
       if (e == 'predicted') {
@@ -431,23 +526,29 @@ function App() {
     } 
     // data.squareData = JSON.parse(JSON.stringify(tempSquareArr))
     if (!radarActive) {
-      numberCaptured = totalCaptured - numberCaptured
+      numberCaptured = totalCaptured
       let captureObj = {
         captured: numberCaptured,
-        color: color
+        color: color,
+        username: currentPlayer == 'Owner' ? data.gameSession.ownerName : data.gameSession.opponentName
       }
+      console.log('turnlogarr')
+      console.log(turnLogArr)
       turnLogArr.push(captureObj)
-      let newArrayCauseReactIsLame = [...turnLogArr]
+      newArrayCauseReactIsLame = [...turnLogArr]
       setTurnLog(newArrayCauseReactIsLame)
     }
 
     if (!radarActive) {
       let turn
+      console.log('number captured: ' + numberCaptured)
       data.gameSession.turn == 'Owner' ? turn = 'Opponent' : turn = 'Owner'
       boardStateJSON = JSON.stringify(tempSquareArr)
       let squareGrowthJSON = JSON.stringify(data.squareGrowth)
-      fetcher.submit({boardState: boardStateJSON, submitType: 'boardUpdate', turn: turn, sessionId: data.gameSession.id, squareGrowth: squareGrowthJSON, captured: numberCaptured}, {method: 'post'})
+      let turnLogJSON = JSON.stringify(newArrayCauseReactIsLame)
+      fetcher.submit({boardState: boardStateJSON, submitType: 'boardUpdate', turn: turn, sessionId: data.gameSession.id, squareGrowth: squareGrowthJSON, captured: numberCaptured, turnLog: turnLogJSON}, {method: 'post'})
     }
+    setBlocked(false)
   }
 
   useEffect(() => {
@@ -477,7 +578,6 @@ function App() {
           tempSquareArr[index + 1].owner = currentPlayer
           data.squareGrowth[index + 1] = `captured ${currentPlayer}`
           updateSquareCount(color)
-          roundCaptured++
           totalCaptured++
           tempSquareArr[index + 1].colIndex <= boardSize && captureCheck(color, index + 1, currentPlayer)
         }
@@ -496,7 +596,6 @@ function App() {
           tempSquareArr[index - 1].owner = currentPlayer
           data.squareGrowth[index - 1] = `captured ${currentPlayer}`
           updateSquareCount(color)
-          roundCaptured++
           totalCaptured++
           tempSquareArr[index - 1].colIndex <= boardSize && captureCheck(color, index - 1, currentPlayer)
         } 
@@ -515,7 +614,6 @@ function App() {
           tempSquareArr[index + boardSize].owner = currentPlayer
           data.squareGrowth[index + boardSize] = `captured ${currentPlayer}`
           updateSquareCount(color)
-          roundCaptured++
           totalCaptured++
           tempSquareArr[index + boardSize].rowIndex <= boardSize && captureCheck(color, index + boardSize, currentPlayer)
         }
@@ -534,7 +632,6 @@ function App() {
           tempSquareArr[index - boardSize].owner = currentPlayer
           data.squareGrowth[index - boardSize] = `captured ${currentPlayer}`
           updateSquareCount(color)
-          roundCaptured++
           totalCaptured++
           tempSquareArr[index - boardSize].rowIndex <= boardSize && captureCheck(color, index - boardSize, currentPlayer)
         }
@@ -590,36 +687,42 @@ function App() {
     window.location.href = '/pvpmenu'
   }
 
+  // useBeforeUnload(
+  //   useCallback(() => {
+  //     fetcher.submit({submitType: 'Leaving', sessionId: data.gameSession.id}, {method: 'POST', reloadDocument: true})
+  //   })
+  // )
 
   return (
     <div className={`gameContainer ${isHydrated ? '' : 'animate-appear'}`}>
-      <div className='settingsIcon' onClick={handleOpen}>{isOpen ? 'X' : 'O'}</div>
+      {/* <div className='settingsIcon' onClick={handleOpen}>{isOpen ? 'X' : 'O'}</div> */}
+      {isHydrated && <FontAwesomeIcon className='settingsIcon' icon={!isOpen ? "fa-solid fa-gear" : "fa-solid fa-x"} onClick={handleOpen}/>}
       <dialog className='victory'>
         {ownerScore > opponentScore ? 
         <div>
           <h2>{data.gameSession.ownerName} wins the game!</h2>
-          <h3>Score: {user.username == data.gameSession.ownerName ? `${ownerScore} - ${opponentScore}` : `${opponentScore} - ${ownerScore}`}</h3>
+          <h3>Score: {user.username != data.gameSession.opponentName ? `${ownerScore} - ${opponentScore}` : `${opponentScore} - ${ownerScore}`}</h3>
           <button onClick={handleRedirect}>Return to lobby</button>
         </div> :
         <div>
           <h2>{data.gameSession.opponentName} wins the game!</h2>
-          <h3>Score: {user.username == data.gameSession.ownerName ? `${ownerScore} - ${opponentScore}` : `${opponentScore} - ${ownerScore}`}</h3>
+          <h3>Score: {user.username != data.gameSession.opponentName ? `${ownerScore} - ${opponentScore}` : `${opponentScore} - ${ownerScore}`}</h3>
           <button onClick={handleRedirect}>Return to lobby</button>
         </div>
         }
       </dialog>
     <section className={`left ${isOpen ? 'hide' : ''}`}>
       <h1 className='time'>{timer > 0 ? timer - 1 : 0}</h1>
-      <section className='buttonSection'>
-        {user.username == data.gameSession.ownerName ? 
-        <div className={`colorRow ${turnOrder == 'Owner' && data.gameSession.ownerName == user.username ? 'faded' : ''}`}>
+      <section className='btnSection'>
+        {user.username != data.gameSession.opponentName ? 
+        <div className={`colorRow ${turnOrder == 'Owner' ? 'faded' : ''}`}>
           <div className={`color off ${opponentColor == 'var(--red)' ? 'grayed' : ''}`} style={{background: 'var(--red)'}}></div>
           <div className={`color off ${opponentColor == 'var(--orange)' ? 'grayed' : ''}`} style={{background: 'var(--orange)'}}></div>
           <div className={`color off ${opponentColor == 'var(--yellow)' ? 'grayed' : ''}`} style={{background: 'var(--yellow)'}}></div>
           <div className={`color off ${opponentColor == 'var(--green)' ? 'grayed' : ''}`} style={{background: 'var(--green)'}}></div>
           <div className={`color off ${opponentColor == 'var(--blue)' ? 'grayed' : ''}`} style={{background: 'var(--blue)'}}></div>
         </div> :
-        <div className={`colorRow ${turnOrder == 'Opponent' && data.gameSession.opponentName == user.username ? 'faded' : ''}`}>
+        <div className={`colorRow ${turnOrder == 'Opponent' ? 'faded' : ''}`}>
           <div className={`color off ${ownerColor == 'var(--red)' ? 'grayed' : ''}`} style={{background: 'var(--red)'}}></div>
           <div className={`color off ${ownerColor == 'var(--orange)' ? 'grayed' : ''}`} style={{background: 'var(--orange)'}}></div>
           <div className={`color off ${ownerColor == 'var(--yellow)' ? 'grayed' : ''}`} style={{background: 'var(--yellow)'}}></div>
@@ -631,7 +734,7 @@ function App() {
       <div className={`board ${user.username == data.gameSession.opponentName ? 'flip' : ''}`} style={{gridTemplateColumns: `repeat(${boardSize}, 1fr)`, background: user.username == data.gameSession.ownerName ? `var(${paletteColors[5]})` : `var(${paletteColors[6]})`}}>
         {data.squareData.map((sq, index) => {
           return (
-            <div className={`square ${data.squareGrowth[index] == false ? '' : data.squareGrowth[index]}`} key={sq.index} style={{background: colorState[index].fakeColor, border: grid ? '1px solid black' : ''}}></div>
+            <div className={`square ${data.squareGrowth[index] == false ? '' : data.squareGrowth[index]} ${isHydrated ? 'captureFade' : ''}`} key={sq.index} style={{background: colorState[index].fakeColor, border: grid ? '1px solid black' : ''}}></div>
           )
         })}
       </div>
@@ -647,20 +750,20 @@ function App() {
           <button className='retryButton' onClick={handleRetry}>Retry Board</button>
           <button className={`predictButton ${radarActive == true ? 'active' : ''}`} onClick={handlePredict}>Radar</button>
         </div> */}
-        {user.username == data.gameSession.ownerName ? 
-        <div className={`colorRow ${turnOrder == 'Owner' && data.gameSession.ownerName == user.username ? '' : 'faded'}`}>
-          <div className={`color ${ownerColor === 'var(--red)' ? 'grayed' : ''}`} onClick={!complete || !fetcher.state ==  'submitting' ? () => colorChange('var(--red)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--red)') : e.preventDefault()} style={{ background: 'var(--red)' }}></div>
-          <div className={`color ${ownerColor === 'var(--orange)' ? 'grayed' : ''}`} onClick={!complete || !fetcher.state ==  'submitting' ? () => colorChange('var(--orange)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--orange)') : e.preventDefault()} style={{ background: 'var(--orange)' }}></div>
-          <div className={`color ${ownerColor === 'var(--yellow)' ? 'grayed' : ''}`} onClick={!complete || !fetcher.state ==  'submitting' ? () => colorChange('var(--yellow)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--yellow)') : e.preventDefault()} style={{ background: 'var(--yellow)' }}></div>
-          <div className={`color ${ownerColor === 'var(--green)' ? 'grayed' : ''}`} onClick={!complete || !fetcher.state ==  'submitting' ? () => colorChange('var(--green)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--green)') : e.preventDefault()} style={{ background: 'var(--green)' }}></div>
-          <div className={`color ${ownerColor === 'var(--blue)' ? 'grayed' : ''}`} onClick={!complete || !fetcher.state ==  'submitting' ? () => colorChange('var(--blue)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--blue)') : e.preventDefault()} style={{ background: 'var(--blue)' }}></div>
+        {user.username != data.gameSession.opponentName ? 
+        <div className={`colorRow ${turnOrder == 'Owner' ? '' : 'faded'}`}>
+          <div className={`color ${ownerColor === 'var(--red)' ? 'grayed' : ''}`} onClick={!complete && !blocked && data.gameSession.ownerName == user.username ?  () => colorChange('var(--red)') : () => console.log('not your turn')} onMouseEnter={e => radarActive ? colorChange('var(--red)') : e.preventDefault()} style={{ background: 'var(--red)' }}></div>
+          <div className={`color ${ownerColor === 'var(--orange)' ? 'grayed' : ''}`} onClick={!complete && !blocked && data.gameSession.ownerName == user.username ? () => colorChange('var(--orange)') : () => console.log('not your turn')} onMouseEnter={e => radarActive ? colorChange('var(--orange)') : e.preventDefault()} style={{ background: 'var(--orange)' }}></div>
+          <div className={`color ${ownerColor === 'var(--yellow)' ? 'grayed' : ''}`} onClick={!complete && !blocked && data.gameSession.ownerName == user.username ? () => colorChange('var(--yellow)') : () => console.log('not your turn')} onMouseEnter={e => radarActive ? colorChange('var(--yellow)') : e.preventDefault()} style={{ background: 'var(--yellow)' }}></div>
+          <div className={`color ${ownerColor === 'var(--green)' ? 'grayed' : ''}`} onClick={!complete && !blocked && data.gameSession.ownerName == user.username ? () => colorChange('var(--green)') : () => console.log('not your turn')} onMouseEnter={e => radarActive ? colorChange('var(--green)') : e.preventDefault()} style={{ background: 'var(--green)' }}></div>
+          <div className={`color ${ownerColor === 'var(--blue)' ? 'grayed' : ''}`} onClick={!complete && !blocked && data.gameSession.ownerName == user.username ? () => colorChange('var(--blue)') : () => console.log('not your turn')} onMouseEnter={e => radarActive ? colorChange('var(--blue)') : e.preventDefault()} style={{ background: 'var(--blue)' }}></div>
         </div> :
-        <div className={`colorRow ${turnOrder == 'Opponent' && data.gameSession.opponentName == user.username ? '' : 'faded'}`}>
-          <div className={`color ${opponentColor === 'var(--red)' ? 'grayed' : ''}`} onClick={!complete || !fetcher.state ==  'submitting' ? () => colorChange('var(--red)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--red)') : e.preventDefault()} style={{ background: 'var(--red)' }}></div>
-          <div className={`color ${opponentColor === 'var(--orange)' ? 'grayed' : ''}`} onClick={!complete || !fetcher.state ==  'submitting' ? () => colorChange('var(--orange)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--orange)') : e.preventDefault()} style={{ background: 'var(--orange)' }}></div>
-          <div className={`color ${opponentColor === 'var(--yellow)' ? 'grayed' : ''}`} onClick={!complete || !fetcher.state ==  'submitting' ? () => colorChange('var(--yellow)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--yellow)') : e.preventDefault()} style={{ background: 'var(--yellow)' }}></div>
-          <div className={`color ${opponentColor === 'var(--green)' ? 'grayed' : ''}`} onClick={!complete || !fetcher.state ==  'submitting' ? () => colorChange('var(--green)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--green)') : e.preventDefault()} style={{ background: 'var(--green)' }}></div>
-          <div className={`color ${opponentColor === 'var(--blue)' ? 'grayed' : ''}`} onClick={!complete || !fetcher.state ==  'submitting' ? () => colorChange('var(--blue)') : ''} onMouseEnter={e => radarActive ? colorChange('var(--blue)') : e.preventDefault()} style={{ background: 'var(--blue)' }}></div>
+        <div className={`colorRow ${turnOrder == 'Opponent' ? '' : 'faded'}`}>
+          <div className={`color ${opponentColor === 'var(--red)' ? 'grayed' : ''}`} onClick={!complete && !blocked && data.gameSession.opponentName == user.username ? () => colorChange('var(--red)') : () => console.log('not your turn')} onMouseEnter={e => radarActive ? colorChange('var(--red)') : e.preventDefault()} style={{ background: 'var(--red)' }}></div>
+          <div className={`color ${opponentColor === 'var(--orange)' ? 'grayed' : ''}`} onClick={!complete && !blocked && data.gameSession.opponentName == user.username ? () => colorChange('var(--orange)') : () => console.log('not your turn')} onMouseEnter={e => radarActive ? colorChange('var(--orange)') : e.preventDefault()} style={{ background: 'var(--orange)' }}></div>
+          <div className={`color ${opponentColor === 'var(--yellow)' ? 'grayed' : ''}`} onClick={!complete && !blocked && data.gameSession.opponentName == user.username ? () => colorChange('var(--yellow)') : () => console.log('not your turn')} onMouseEnter={e => radarActive ? colorChange('var(--yellow)') : e.preventDefault()} style={{ background: 'var(--yellow)' }}></div>
+          <div className={`color ${opponentColor === 'var(--green)' ? 'grayed' : ''}`} onClick={!complete && !blocked && data.gameSession.opponentName == user.username ? () => colorChange('var(--green)') : () => console.log('not your turn')} onMouseEnter={e => radarActive ? colorChange('var(--green)') : e.preventDefault()} style={{ background: 'var(--green)' }}></div>
+          <div className={`color ${opponentColor === 'var(--blue)' ? 'grayed' : ''}`} onClick={!complete && !blocked && data.gameSession.opponentName == user.username ? () => colorChange('var(--blue)') : () => console.log('not your turn')} onMouseEnter={e => radarActive ? colorChange('var(--blue)') : e.preventDefault()} style={{ background: 'var(--blue)' }}></div>
         </div>
         }
        
@@ -669,15 +772,15 @@ function App() {
     <section className='right'>
       <div className='captureCounter'>
         <div className='me'>
-          <h4 className='playerName'>{user.username == data.gameSession.ownerName ? data.gameSession.ownerName : data.gameSession.opponentName}</h4>
-          <div className='fakeSquare' style={{background: user.username == data.gameSession.ownerName ? ' var(--owner)' : 'var(--opponent)'}}>
-            <h4>{user.username == data.gameSession.ownerName ? ownerScore : opponentScore}</h4>
+          <h4 className='playerName'>{user.username != data.gameSession.opponentName ? data.gameSession.ownerName : data.gameSession.opponentName}</h4>
+          <div className='fakeSquare' style={{background: user.username != data.gameSession.opponentName ? ' var(--owner)' : 'var(--opponent)'}}>
+            <h4>{user.username != data.gameSession.opponentName ? ownerScore : opponentScore}</h4>
           </div>
         </div>
         <div className='you'>
-          <h4 className='playerName'>{user.username == data.gameSession.ownerName ? data.gameSession.opponentName : data.gameSession.ownerName}</h4>
-          <div className='fakeSquare' style={{background: user.username == data.gameSession.ownerName ? ' var(--opponent)' : 'var(--owner)'}}>
-            <h4>{user.username == data.gameSession.ownerName ? opponentScore : ownerScore}</h4>
+          <h4 className='playerName'>{user.username != data.gameSession.opponentName ? data.gameSession.opponentName : data.gameSession.ownerName}</h4>
+          <div className='fakeSquare' style={{background: user.username != data.gameSession.opponentName ? ' var(--opponent)' : 'var(--owner)'}}>
+            <h4>{user.username != data.gameSession.opponentName ? opponentScore : ownerScore}</h4>
           </div>
         </div>
       </div>
@@ -712,35 +815,25 @@ function App() {
         </div>
         <div className='turnLog'>
           <h3>Turn Log</h3>
-          <div className='row'>
-              <h3>Turn</h3>
+          <div className='row pvp'>
+              <h3>Player</h3>
               <h3>Captured</h3>
           </div>
-          {data.bestGlobalScore && <div className='row'>
-              <h3></h3>
-              <h3>You</h3>
-              <h3>{data.bestGlobalScore.userName}</h3>
-          </div>}
-          {/* <div className='turnLogBox'>
+          <div className='turnLogBox'>
             {turnLog && turnLog.map((row, index) => {
               return (
-                <div className='row'>
-                <h3>{index + 1}</h3>
+                <div className='row pvp'>
+                <h3>{turnLog[index].username}</h3>
                 <div className='turnInfo'>
                   <div className='fakeSquare' style={{background: turnLog[index].color}}>
                     <h4>{turnLog[index].captured}</h4>
                   </div>
                 </div>
-                {oppTurnLog != null && <div className='turnInfo'>
-                  <div className='fakeSquare' style={oppTurnLog.turnLog[index] && {background: oppTurnLog.turnLog[index].color}}>
-                    <h4>{oppTurnLog.turnLog[index] && oppTurnLog.turnLog[index].captured}</h4>
-                  </div>
-                </div>}
               </div>
               )
             })}
             <div className='anchor'></div>
-          </div> */}
+          </div>
         </div>
         <h2 className='colorOptions'>Color Options</h2>
         <div className='colorPalette'>

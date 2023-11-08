@@ -25,7 +25,7 @@ export default function Index() {
         <Form  action="/logout" method="post">
           <button style={{color: user == null ? ' lightgray' : ''}}
             type="submit"
-            className="rounded bg-slate-600 px-4 py-2 text-blue-100 hover:bg-blue-500 active:bg-blue-600"
+            className=""
           >
             Logout
           </button>

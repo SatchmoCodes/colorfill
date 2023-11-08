@@ -7,7 +7,7 @@ import { json, redirect } from "@remix-run/node";
 import { getUserNameById } from "../models/user.server";
 import generateBoard from './pvpGenerator'
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import logo from '~/img/Colorfill.png'
 
@@ -60,8 +60,7 @@ export const action = async ({ request }) => {
     boardHalf.push(centerPiece)
     boardData = boardHalf.concat(reverseHalf)
   }
-  else {
-    console.log('random')
+  else if (boardType == 'Random') {
     for (let i = 0; i < dimensions * dimensions; i++) {
       boardData.push(Math.floor(Math.random() * 5))
     }
@@ -78,9 +77,60 @@ export const action = async ({ request }) => {
       boardData.splice((boardData.length - 1) - dimensions, 1, Math.floor(Math.random() * 5))
     }
   }
-
-  boardData = boardData.join("")
-  console.log(boardData)
+  else if (boardType == 'Partial Mirror') {
+    let halfDim
+    let boardHalf = []
+    halfDim = Math.ceil(((dimensions * dimensions) / 2) - 1)
+  
+    for (let i = 0; i < halfDim; i++) {
+      boardHalf.push(Math.floor(Math.random() * 5)) 
+    }
+    while (boardHalf[1] == boardHalf[0]) {
+      boardHalf.splice(1, 1, Math.floor(Math.random() * 5))
+    }
+    while (boardHalf[dimensions] == boardHalf[0]) {
+      boardHalf.splice(dimensions, 1, Math.floor(Math.random() * 5))
+    }
+    let reverseHalf = JSON.parse(JSON.stringify(boardHalf))
+    reverseHalf = reverseHalf.reverse()
+    let centerPiece = (Math.floor(Math.random() * 5))
+    boardHalf.push(centerPiece)
+    boardData = boardHalf.concat(reverseHalf)
+    for (let x = 0; x < boardData.length; x++) {
+      if (x % 2 != 0) {
+        let newValue = Math.floor(Math.random() * 3)
+        if (newValue == 0) {
+          boardData[x] = Math.floor(Math.random() * 5)
+        }
+      }
+      while (boardData[1] == boardData[0]) {
+        boardData.splice(1, 1, Math.floor(Math.random() * 5))
+      }
+      while (boardData[dimensions] == boardData[0]) {
+        boardData.splice(dimensions, 1, Math.floor(Math.random() * 5))
+      }
+      while (boardData[boardData.length - 2] == boardData[boardData.length - 1]) {
+        boardData.splice(boardData.length - 2, 1, Math.floor(Math.random() * 5))
+      }
+      while (boardData[(boardData.length - 1) - dimensions] == boardData[boardData.length - 1]) {
+        boardData.splice((boardData.length - 1) - dimensions, 1, Math.floor(Math.random() * 5))
+      }
+    }
+  }
+ const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+ const numbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+ boardData = boardData.join("")
+ let code = ''
+ for (let i = 0; i < 7; i++) {
+  if (i < 3) {
+    code += letters[Math.floor(Math.random() * 26)]
+  }
+  else if (i > 3) {
+    code += numbers[Math.floor(Math.random() * 10)]
+  }
+ }
+ console.log(code)
+  
 
  const username = await getUserNameById({id: userId})
  const existingSession = await findExistingSession({ ownerName: username.username})
@@ -101,7 +151,7 @@ export const action = async ({ request }) => {
   let squareGrowth = JSON.stringify(squareGrowthArr)
 
   const board = await createBoard({ size, boardData, userId})
-  const gameSession = await createGameSession({ownerName: username.username, opponentName: 'waiting for player', boardId: board.id, boardSize: size, boardData, gameState: 'Waiting', boardState, squareGrowth, boardType, gameType, turn, ownerScore: 1, opponentScore: 1, turnLog: ''})
+  const gameSession = await createGameSession({ownerName: username.username, opponentName: 'waiting for player', boardId: board.id, boardSize: size, boardData, gameState: 'Waiting', boardState, squareGrowth, boardType, gameType, code, turn, ownerScore: 1, opponentScore: 1, winner: '', loser: '', turnLog: ''})
   emitter.emit('new-gameSession', `${JSON.stringify(gameSession)}\n\n`)
 
   return redirect(`/pvplobby/${gameSession.id}`)
@@ -125,6 +175,10 @@ export default function Pvpcreate() {
   function handleGameTypeChange(event) {
     setGameType(event.currentTarget.value)
   }
+
+  useEffect(() => {
+    window.history.replaceState(null, '/game', ['/pvpmenu'])
+  }, [])
  
  
   return (
@@ -161,6 +215,10 @@ export default function Pvpcreate() {
                     <input id='random' type='radio' name='boardType' value={'Random'} onChange={handleTypeChange}/>
                     <label htmlFor='random'>Random</label>
                 </div>
+                <div className='option'>
+                    <input id='partial' type='radio' name='boardType' value={'Partial Mirror'} onChange={handleTypeChange}/>
+                    <label htmlFor='partial'>Partial Mirror</label>
+                </div>
             </div>
             <div className="gameType box">
                 <h3>Game Type</h3>
@@ -174,7 +232,7 @@ export default function Pvpcreate() {
                 </div>
             </div>
         </div>
-        <Form method="post">
+        <Form method="post" reloadDocument>
           <input type="hidden" name="size" value={size}></input>
           <input type="hidden" name="boardType" value={boardType}></input>
           <input type="hidden" name="gameType" value={gameType}></input>

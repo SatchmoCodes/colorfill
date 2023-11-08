@@ -23,28 +23,35 @@ export const action = async ({ request }) => {
 
   if (typeof username !== "string" || username.length === 0) {
     return json(
-      {errors: { email: null, username: 'Username is required', password: null}},
+      {errors: { username: 'Username is required', password: null}},
       { status: 400}
     )
   }
 
-  if (username.length > 30) {
+  if (username.length > 20) {
     return json(
-      {errors: { email: null, username: 'Username is too long', password: null}},
+      {errors: { username: 'Username is too long', password: null}},
+      { status: 400}
+    )
+  }
+
+  if (username.includes(' ')) {
+    return json(
+      {errors: { username: 'Username cannot have spaces', password: null}},
       { status: 400}
     )
   }
 
   if (typeof password !== "string" || password.length === 0) {
     return json(
-      { errors: { email: null, password: "Password is required" } },
+      { errors: { username: null, password: "Password is required" } },
       { status: 400 }
     );
   }
 
   if (password.length < 8) {
     return json(
-      { errors: { email: null, password: "Password is too short" } },
+      { errors: { username: null, password: "Password is too short" } },
       { status: 400 }
     );
   }
@@ -107,8 +114,9 @@ export default function Join() {
                 id="username"
                 required
                 autoFocus={true}
+                maxLength={20}
                 name="username"
-                type="username"
+                type="text"
                 autoComplete="username"
                 aria-invalid={actionData?.errors?.username ? true : undefined}
                 aria-describedby="username-error"
